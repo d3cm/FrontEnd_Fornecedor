@@ -53,21 +53,6 @@
       }
       
       obraData = await getObra_Entidade_ParametroById(id);
-
-      if (obraData?.entidades) {
-        obraData.entidades.forEach((entidade, index) => {
-          console.log(`Entidade ${index}:`, {
-            id: entidade.id,
-            nome: entidade.fornecedor,
-            tipo: entidade.tipo,
-            tipoLength: entidade.tipo?.length,
-            tipoCharCodes: entidade.tipo?.split('').map(c => c.charCodeAt(0)),
-            parametrosAluguer: entidade.parametrosAluguer,
-            parametrosFornecedor: entidade.parametrosFornecedor,
-            parametrosEmpreitada: entidade.parametrosEmpreitada
-          });
-        });
-      }
       
       if (!obraData || !obraData.obra) {
         throw new Error('Obra não encontrada');
@@ -90,24 +75,165 @@
     window.location.href = 'http://localhost:1337';
   }
 
-  function formatRating(value) {
-    return value ? `${value}/5` : 'N/A';
+  // Calculate total score for fornecedor
+  function calculateFornecedorScore(fornecedor) {
+    if (!fornecedor.parametrosFornecedor) return 0;
+    
+    const params = fornecedor.parametrosFornecedor;
+    let total = 0;
+    
+    total += params.qualidade_materiais || 0;
+    total += params.cumprimento_prazos || 0;
+    total += params.relacao_qualidadePreco || 0;
+    total += params.cumprimento_regras || 0;
+    
+    // Gestão de reclamações - if not applicable, use 3 as default
+    total += params.gestao_reclamacoes !== null ? params.gestao_reclamacoes : 3;
+    
+    return total;
   }
 
-  function getStatusFornecedor(forn) {
-    const params = forn.parametrosFornecedor;
-    if (!params) {
-      return { text: 'Sem Parâmetros', class: 'undefined' };
-    }
+  // Calculate total score for empreitada
+  function calculateEmpreitadaScore(empreitada) {
+    if (!empreitada.parametrosEmpreitada) return 0;
     
-    if (!params.forn_aprovado && !params.forn_risco) {
-      return { text: 'Eliminado', class: 'eliminated' };
-    } else if (!params.forn_aprovado && params.forn_risco) {
-      return { text: 'Em Risco', class: 'risk' };
-    } else if (params.forn_aprovado) {
-      return { text: 'Aprovado', class: 'approved' };
+    const params = empreitada.parametrosEmpreitada;
+    let total = 0;
+    
+    total += params.resposta_solitacoes || 0;
+    total += params.respeito_normas_seguranca || 0;
+    total += params.respeito_normas_ambientais || 0;
+    total += params.comformidade_servico || 0;
+    total += params.cumprimento_prazos || 0;
+    total += params.capacidade_negocial || 0;
+    total += params.competencia_execucao_correcoes || 0;
+    total += params.entrega_documentacao || 0;
+    
+    return total;
+  }
+
+  // Calculate total score for aluguer
+  function calculateAluguerScore(aluguer) {
+    if (!aluguer.parametrosAluguer) return 0;
+    
+    const params = aluguer.parametrosAluguer;
+    let total = 0;
+    
+    total += params.capacidade_resposta || 0;
+    total += params.qualidade_equipamento || 0;
+    total += params.cumprimento_prazo || 0;
+    total += params.desempenho_ambiental || 0;
+    total += params.manuntencao_assistenciaTecnica || 0;
+    
+    return total;
+  }
+
+  // Get status classification for fornecedor
+  function getStatusFornecedor(fornecedor) {
+    const score = calculateFornecedorScore(fornecedor);
+    
+    if (score <= 10) {
+      return { 
+        text: 'Eliminado', 
+        class: 'eliminated',
+        description: 'Fornecedor eliminado. É suspensa a consulta/convite a este fornecedor, até que o mesmo implemente ações corretivas que sejam aceites pela CCR, Lda'
+      };
+    } else if (score >= 11 && score < 15) {
+      return { 
+        text: 'Em Risco', 
+        class: 'risk',
+        description: 'Fornecedor com problemas em cumprir os requisitos estabelecidos e possível de ser eliminado da lista de fornecedores. Necessita por isso, de implementar ações de melhoria que lhe permitam ultrapassar as insuficiências apontadas'
+      };
+    } else if (score >= 15 && score <= 20) {
+      return { 
+        text: 'Bom', 
+        class: 'approved',
+        description: 'Fornecedor Bom - satisfaz os requisitos pretendidos.'
+      };
+    } else if (score >= 21 && score <= 25) {
+      return { 
+        text: 'Excelente', 
+        class: 'excellent',
+        description: 'Fornecedor Excelente - satisfaz plenamente os requisitos pretendidos e é uma referência'
+      };
     }
-    return { text: 'Indefinido', class: 'undefined' };
+    return { 
+      text: 'Indefinido', 
+      class: 'undefined',
+      description: 'Classificação não disponível'
+    };
+  }
+
+  // Get status classification for empreitada
+  function getStatusEmpreitada(empreitada) {
+    const score = calculateEmpreitadaScore(empreitada);
+    
+    if (score <= 16) {
+      return { 
+        text: 'Eliminado', 
+        class: 'eliminated',
+        description: 'Subcontratado eliminado. É suspensa a consulta/convite a este subcontratado, até que o mesmo implemente ações corretivas que sejam aceites pela CCR, Lda'
+      };
+    } else if (score >= 17 && score <= 23) {
+      return { 
+        text: 'Em Risco', 
+        class: 'risk',
+        description: 'Subcontratado com problemas em cumprir os requisitos estabelecidos e possível de ser eliminado da lista de fornecedores/subcontratados. Necessita por isso, de implementar ações de melhoria que lhe permitam ultrapassar as insuficiências apontadas'
+      };
+    } else if (score >= 24 && score <= 32) {
+      return { 
+        text: 'Bom', 
+        class: 'approved',
+        description: 'Subcontratado Bom - satisfaz os requisitos pretendidos.'
+      };
+    } else if (score >= 33 && score <= 40) {
+      return { 
+        text: 'Excelente', 
+        class: 'excellent',
+        description: 'Subcontratado Excelente - satisfaz plenamente os requisitos pretendidos e é uma referência'
+      };
+    }
+    return { 
+      text: 'Indefinido', 
+      class: 'undefined',
+      description: 'Classificação não disponível'
+    };
+  }
+
+  // Get status classification for aluguer
+  function getStatusAluguer(aluguer) {
+    const score = calculateAluguerScore(aluguer);
+    
+    if (score <= 10) {
+      return { 
+        text: 'Eliminado', 
+        class: 'eliminated',
+        description: 'Fornecedor eliminado. É suspensa a consulta/convite a este fornecedor, até que o mesmo implemente ações corretivas que sejam aceites pela CCR, Lda'
+      };
+    } else if (score >= 11 && score < 15) {
+      return { 
+        text: 'Em Risco', 
+        class: 'risk',
+        description: 'Fornecedor com problemas em cumprir os requisitos estabelecidos e possível de ser eliminado da lista de fornecedores. Necessita por isso, de implementar ações de melhoria que lhe permitam ultrapassar as insuficiências apontadas'
+      };
+    } else if (score >= 15 && score <= 20) {
+      return { 
+        text: 'Bom', 
+        class: 'approved',
+        description: 'Fornecedor Bom - satisfaz os requisitos pretendidos.'
+      };
+    } else if (score >= 21 && score <= 25) {
+      return { 
+        text: 'Excelente', 
+        class: 'excellent',
+        description: 'Fornecedor Excelente - satisfaz plenamente os requisitos pretendidos e é uma referência'
+      };
+    }
+    return { 
+      text: 'Indefinido', 
+      class: 'undefined',
+      description: 'Classificação não disponível'
+    };
   }
 
   function selectEntity(entity) {
@@ -172,7 +298,6 @@
       default: 
         entities = [];
     }
-    console.log(`Entidades para ${activeMainTab}:`, entities);
     return entities;
   }
 
@@ -211,7 +336,6 @@
       parametrosAluguer: null
     };
     
-    // Set the appropriate parameters based on active tab
     switch(activeMainTab) {
       case 'fornecedores':
         newEntity.parametrosFornecedor = {
@@ -273,13 +397,13 @@
 
       // Call postEntidade function
       const result = await postEntidade(newEntity);
-      location.reload();
+      
       // Refresh the data
       obraData = await getObra_Entidade_ParametroById(id);
       
       closeAddModal();
       
-      // Show success message (you can replace this with a toast notification)
+      // Show success message
       alert('Entidade adicionada com sucesso!');
       
     } catch (err) {
@@ -381,142 +505,118 @@
 
       <div class="tab-content">
         {#if getCurrentEntities().length > 0}
-          {#if activeSubTab === 'table'}
-            <div class="table-container">
-              
-              {#if activeMainTab === 'fornecedores'}
-                <table class="entidades-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Fornecedor</th>
-                      <th>Contribuinte</th>
-                      <th>Especialidade</th>
-                      <th>Qual. Materiais</th>
-                      <th>Cumpr. Prazos</th>
-                      <th>Qual./Preço</th>
-                      <th>Cumpr. Regras</th>
-                      <th>Gestão Recl.</th>
-                      <th>Status</th>
-                      <th>Ações</th>
+        {#if activeSubTab === 'table'}
+          <div class="table-container">
+            
+            {#if activeMainTab === 'fornecedores'}
+              <table class="entidades-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Fornecedor</th>
+                    <th>Contribuinte</th>
+                    <th>Especialidade</th>
+                    <th>Pontuação</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each getCurrentEntities() as forn (forn.id)}
+                    <tr class="table-row">
+                      <td>{forn.id}</td>
+                      <td class="fornecedor-name">{forn.fornecedor}</td>
+                      <td>{forn.contribuinte}</td>
+                      <td>{forn.especialidade}</td>
+                      <td class="rating">{calculateFornecedorScore(forn)}</td>
+                      <td class="status-{getStatusFornecedor(forn).class}">{getStatusFornecedor(forn).text}</td>
+                      <td>
+                        <button 
+                          class="btn-details"
+                          on:click={() => window.location.href = `EntidadeDetail.svelte?id=${forn.id}`}
+                        >
+                          Ver Detalhes
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {#each getCurrentEntities() as forn (forn.id)}
-                      <tr class="table-row">
-                        <td>{forn.id}</td>
-                        <td class="fornecedor-name">{forn.fornecedor}</td>
-                        <td>{forn.contribuinte}</td>
-                        <td>{forn.especialidade}</td>
-                        <td class="rating">{formatRating(forn.parametrosFornecedor?.qualidade_materiais)}</td>
-                        <td class="rating">{formatRating(forn.parametrosFornecedor?.cumprimento_prazos)}</td>
-                        <td class="rating">{formatRating(forn.parametrosFornecedor?.relacao_qualidadePreco)}</td>
-                        <td class="rating">{formatRating(forn.parametrosFornecedor?.cumprimento_regras)}</td>
-                        <td class="rating">{formatRating(forn.parametrosFornecedor?.gestao_reclamacoes)}</td>
-                        <td>
-                          <span class="status-badge {getStatusFornecedor(forn).class}">
-                            {getStatusFornecedor(forn).text}
-                          </span>
-                        </td>
-                        <td>
-                          <button 
-                            class="btn-details"
-                            on:click={() => selectEntity(forn)}
-                          >
-                            Ver Detalhes
-                          </button>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              {/if}
-
-              {#if activeMainTab === 'empreitadas'}
-                <table class="entidades-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Nome</th>
-                      <th>Contribuinte</th>
-                      <th>Especialidade</th>
-                      <th>Resp. Solicitações</th>
-                      <th>Normas Segurança</th>
-                      <th>Normas Ambientais</th>
-                      <th>Conformidade</th>
-                      <th>Cumpr. Prazos</th>
-                      <th>Ações</th>
+                  {/each}
+                </tbody>
+              </table>
+            {/if}
+      
+            {#if activeMainTab === 'empreitadas'}
+              <table class="entidades-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Contribuinte</th>
+                    <th>Especialidade</th>
+                    <th>Pontuação</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each getCurrentEntities() as emp (emp.id)}
+                    <tr class="table-row">
+                      <td>{emp.id}</td>
+                      <td class="fornecedor-name">{emp.fornecedor}</td>
+                      <td>{emp.contribuinte}</td>
+                      <td>{emp.especialidade}</td>
+                      <td class="rating">{calculateEmpreitadaScore(emp)}</td>
+                      <td class="status-{getStatusEmpreitada(emp).class}">{getStatusEmpreitada(emp).text}</td>
+                      <td>
+                        <button 
+                          class="btn-details"
+                          on:click={() => window.location.href = `EntidadeDetail.svelte?id=${emp.id}`}
+                        >
+                          Ver Detalhes
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {#each getCurrentEntities() as emp (emp.id)}
-                      <tr class="table-row">
-                        <td>{emp.id}</td>
-                        <td class="fornecedor-name">{emp.fornecedor}</td>
-                        <td>{emp.contribuinte}</td>
-                        <td>{emp.especialidade}</td>
-                        <td class="rating">{formatRating(emp.parametrosEmpreitada?.resposta_solitacoes)}</td>
-                        <td class="rating">{formatRating(emp.parametrosEmpreitada?.respeito_normas_seguranca)}</td>
-                        <td class="rating">{formatRating(emp.parametrosEmpreitada?.respeito_normas_ambientais)}</td>
-                        <td class="rating">{formatRating(emp.parametrosEmpreitada?.comformidade_servico)}</td>
-                        <td class="rating">{formatRating(emp.parametrosEmpreitada?.cumprimento_prazos)}</td>
-                        <td>
-                          <button 
-                            class="btn-details"
-                            on:click={() => selectEntity(emp)}
-                          >
-                            Ver Detalhes
-                          </button>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              {/if}
-
-              {#if activeMainTab === 'alugueres'}
-                <table class="entidades-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Nome</th>
-                      <th>Contribuinte</th>
-                      <th>Especialidade</th>
-                      <th>Cap. Resposta</th>
-                      <th>Qual. Equipamento</th>
-                      <th>Cumpr. Prazo</th>
-                      <th>Desemp. Ambiental</th>
-                      <th>Manutenção</th>
-                      <th>Ações</th>
+                  {/each}
+                </tbody>
+              </table>
+            {/if}
+      
+            {#if activeMainTab === 'alugueres'}
+              <table class="entidades-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Contribuinte</th>
+                    <th>Especialidade</th>
+                    <th>Pontuação</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each getCurrentEntities() as alug (alug.id)}
+                    <tr class="table-row">
+                      <td>{alug.id}</td>
+                      <td class="fornecedor-name">{alug.fornecedor}</td>
+                      <td>{alug.contribuinte || 'N/A'}</td>
+                      <td>{alug.especialidade || 'N/A'}</td>
+                      <td class="rating">{calculateAluguerScore(alug)}</td>
+                      <td class="status-{getStatusAluguer(alug).class}">{getStatusAluguer(alug).text}</td>
+                      <td>
+                        <button 
+                          class="btn-details"
+                          on:click={() => window.location.href = `EntidadeDetail.svelte?id=${alug.id}`}
+                        >
+                          Ver Detalhes
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {#each getCurrentEntities() as alug (alug.id)}
-                      <tr class="table-row">
-                        <td>{alug.id}</td>
-                        <td class="fornecedor-name">{alug.fornecedor}</td>
-                        <td>{alug.contribuinte || 'N/A'}</td>
-                        <td>{alug.especialidade || 'N/A'}</td>
-                        <td class="rating">{formatRating(alug.parametrosAluguer?.capacidade_resposta)}</td>
-                        <td class="rating">{formatRating(alug.parametrosAluguer?.qualidade_equipamento)}</td>
-                        <td class="rating">{formatRating(alug.parametrosAluguer?.cumprimento_prazo)}</td>
-                        <td class="rating">{formatRating(alug.parametrosAluguer?.desempenho_ambiental)}</td>
-                        <td class="rating">{formatRating(alug.parametrosAluguer?.manuntencao_assistenciaTecnica)}</td>
-                        <td>
-                          <button 
-                            class="btn-details"
-                            on:click={() => selectEntity(alug)}
-                          >
-                            Ver Detalhes
-                          </button>
-                        </td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              {/if}
-            </div>
-          {/if}
+                  {/each}
+                </tbody>
+              </table>
+            {/if}
+          </div>
+        {/if}
 
           {#if activeSubTab === 'details' && selectedEntity}
             <div class="details-container">
@@ -541,15 +641,31 @@
                     <div class="detail-item">
                       <strong>Data Criação:</strong> {formatDate(selectedEntity.data_criacao)}
                     </div>
-                    {#if activeMainTab === 'fornecedores'}
-                      <div class="detail-item">
-                        <strong>Status:</strong> 
-                        <span class="status-badge {getStatusFornecedor(selectedEntity).class}">
-                          {getStatusFornecedor(selectedEntity).text}
-                        </span>
-                      </div>
-                    {/if}
+                    <div class="detail-item">
+                      <strong>Classificação Total:</strong> 
+                      {#if activeMainTab === 'fornecedores'}
+                        {calculateFornecedorScore(selectedEntity)} pontos
+                      {:else if activeMainTab === 'empreitadas'}
+                        {calculateEmpreitadaScore(selectedEntity)} pontos
+                      {:else if activeMainTab === 'alugueres'}
+                        {calculateAluguerScore(selectedEntity)} pontos
+                      {/if}
+                    </div>
+                    <div class="detail-item">
+                      <strong>Status:</strong> 
+                      {#if activeMainTab === 'fornecedores'}
+                        <span class="status-{getStatusFornecedor(selectedEntity).class}">{getStatusFornecedor(selectedEntity).text}</span>
+                        <p class="status-description">{getStatusFornecedor(selectedEntity).description}</p>
+                      {:else if activeMainTab === 'empreitadas'}
+                        <span class="status-{getStatusEmpreitada(selectedEntity).class}">{getStatusEmpreitada(selectedEntity).text}</span>
+                        <p class="status-description">{getStatusEmpreitada(selectedEntity).description}</p>
+                      {:else if activeMainTab === 'alugueres'}
+                        <span class="status-{getStatusAluguer(selectedEntity).class}">{getStatusAluguer(selectedEntity).text}</span>
+                        <p class="status-description">{getStatusAluguer(selectedEntity).description}</p>
+                      {/if}
+                    </div>
                   </div>
+                
 
                   <div class="detail-card">
                     <h4>Avaliações</h4>
@@ -558,79 +674,87 @@
                       {#if activeMainTab === 'fornecedores'}
                         <div class="rating-item">
                           <span>Qualidade Materiais:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosFornecedor?.qualidade_materiais)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.qualidade_materiais || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Cumprimento Prazos:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosFornecedor?.cumprimento_prazos)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.cumprimento_prazos || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Relação Qualidade/Preço:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosFornecedor?.relacao_qualidadePreco)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.relacao_qualidadePreco || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Cumprimento Regras:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosFornecedor?.cumprimento_regras)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.cumprimento_regras || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Gestão Reclamações:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosFornecedor?.gestao_reclamacoes)}</span>
+                          <span class="rating-value">
+                            {selectedEntity.parametrosFornecedor?.gestao_reclamacoes !== null 
+                              ? `${selectedEntity.parametrosFornecedor.gestao_reclamacoes}/5`
+                              : '3/5 (não aplicável)'}
+                          </span>
                         </div>
                       
                       {:else if activeMainTab === 'empreitadas'}
                         <div class="rating-item">
                           <span>Resposta Solicitações:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.resposta_solitacoes)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.resposta_solitacoes || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Normas Segurança:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.respeito_normas_seguranca)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.respeito_normas_seguranca || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Normas Ambientais:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.respeito_normas_ambientais)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.respeito_normas_ambientais || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Conformidade Serviço:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.comformidade_servico)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.comformidade_servico || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Cumprimento Prazos:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.cumprimento_prazos)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.cumprimento_prazos || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Capacidade Negocial:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.capacidade_negocial)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.capacidade_negocial || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Competência Execução:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.competencia_execucao_correcoes)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.competencia_execucao_correcoes || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Entrega Documentação:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosEmpreitada?.entrega_documentacao)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.entrega_documentacao || 0}/5</span>
                         </div>
                       
                       {:else if activeMainTab === 'alugueres'}
                         <div class="rating-item">
                           <span>Capacidade Resposta:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosAluguer?.capacidade_resposta)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosAluguer?.capacidade_resposta || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Qualidade Equipamento:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosAluguer?.qualidade_equipamento)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosAluguer?.qualidade_equipamento || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Cumprimento Prazo:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosAluguer?.cumprimento_prazo)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosAluguer?.cumprimento_prazo || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Desempenho Ambiental:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosAluguer?.desempenho_ambiental)}</span>
+                          <span class="rating-value">{selectedEntity.parametrosAluguer?.desempenho_ambiental || 0}/5</span>
                         </div>
                         <div class="rating-item">
                           <span>Manutenção/Assist. Técnica:</span>
-                          <span class="rating-value">{formatRating(selectedEntity.parametrosAluguer?.manuntencao_assistenciaTecnica)}</span>
+                          <span class="rating-value">
+                            {selectedEntity.parametrosAluguer?.manuntencao_assistenciaTecnica !== null 
+                              ? `${selectedEntity.parametrosAluguer.manuntencao_assistenciaTecnica}/5`
+                              : '3/5 (não aplicável)'}
+                          </span>
                         </div>
                       {/if}
                     </div>
@@ -651,17 +775,6 @@
         {:else}
           <div class="no-data">
             <p>Nenhuma entidade do tipo "{activeMainTab}" encontrada.</p>
-            <p><small>Debug: Total de entidades carregadas: {obraData?.entidades?.length || 0}</small></p>
-            {#if obraData?.entidades?.length > 0}
-              <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px; font-size: 12px;">
-                <strong>Tipos disponíveis:</strong>
-                {#each [...new Set(obraData.entidades.map(e => e.tipo))] as tipoDisponivel}
-                  <span style="margin-right: 10px; padding: 2px 6px; background: #ddd; border-radius: 2px;">
-                    "{tipoDisponivel}" (length: {tipoDisponivel.length})
-                  </span>
-                {/each}
-              </div>
-            {/if}
           </div>
         {/if}
       </div>
@@ -793,33 +906,32 @@
                   
                   <div class="form-group">
                     <label for="gestao_reclamacoes">Gestão Reclamações (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="gestao_reclamacoes" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosFornecedor.gestao_reclamacoes}
-                    />
-                    <span class="range-value">{newEntity.parametrosFornecedor.gestao_reclamacoes}</span>
+                    <div class="checkbox-group">
+                      <label>
+                        <input 
+                          type="checkbox" 
+                          on:change={() => {
+                            if (newEntity.parametrosFornecedor.gestao_reclamacoes === null) {
+                              newEntity.parametrosFornecedor.gestao_reclamacoes = 3;
+                            } else {
+                              newEntity.parametrosFornecedor.gestao_reclamacoes = null;
+                            }
+                          }}
+                        />
+                        Não aplicável (valor médio 3)
+                      </label>
+                    </div>
+                    {#if newEntity.parametrosFornecedor.gestao_reclamacoes !== null}
+                      <input 
+                        type="range" 
+                        id="gestao_reclamacoes" 
+                        min="1" 
+                        max="5" 
+                        bind:value={newEntity.parametrosFornecedor.gestao_reclamacoes}
+                      />
+                      <span class="range-value">{newEntity.parametrosFornecedor.gestao_reclamacoes}</span>
+                    {/if}
                   </div>
-                </div>
-                
-                <div class="checkbox-group">
-                  <label class="checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      bind:checked={newEntity.parametrosFornecedor.forn_aprovado}
-                    />
-                    Fornecedor Aprovado
-                  </label>
-                  
-                  <label class="checkbox-label">
-                    <input 
-                      type="checkbox" 
-                      bind:checked={newEntity.parametrosFornecedor.forn_risco}
-                    />
-                    Fornecedor em Risco
-                  </label>
                 </div>
               {/if}
 
@@ -975,14 +1087,31 @@
                   
                   <div class="form-group">
                     <label for="manuntencao_assistenciaTecnica">Manutenção/Assist. Técnica (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="manuntencao_assistenciaTecnica" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}
-                    />
-                    <span class="range-value">{newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}</span>
+                    <div class="checkbox-group">
+                      <label>
+                        <input 
+                          type="checkbox" 
+                          on:change={() => {
+                            if (newEntity.parametrosAluguer.manuntencao_assistenciaTecnica === null) {
+                              newEntity.parametrosAluguer.manuntencao_assistenciaTecnica = 3;
+                            } else {
+                              newEntity.parametrosAluguer.manuntencao_assistenciaTecnica = null;
+                            }
+                          }}
+                        />
+                        Não aplicável (valor médio 3)
+                      </label>
+                    </div>
+                    {#if newEntity.parametrosAluguer.manuntencao_assistenciaTecnica !== null}
+                      <input 
+                        type="range" 
+                        id="manuntencao_assistenciaTecnica" 
+                        min="1" 
+                        max="5" 
+                        bind:value={newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}
+                      />
+                      <span class="range-value">{newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}</span>
+                    {/if}
                   </div>
                 </div>
               {/if}
