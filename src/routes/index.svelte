@@ -156,7 +156,11 @@
 </div>
 
 {#if showModal}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="modal-overlay" on:click={closeModal}>
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div class="modal" on:click|stopPropagation>
       <div class="modal-header">
         <h3>{modalMode === 'create' ? 'Nova Obra' : 'Editar Obra'}</h3>
