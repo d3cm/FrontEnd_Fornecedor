@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getObra_Entidade_ParametroById, postEntidade } from '../../api/api';
   import '../CSS/style.css';
+  import { goto } from '@roxi/routify';
 
   const API_URL = 'http://localhost:3000/api'; // Adjust according to your API URL
 
@@ -394,6 +395,7 @@
       if (!newEntity.especialidade.trim()) {
         throw new Error('Especialidade é obrigatória');
       }
+      
 
       // Call postEntidade function
       const result = await postEntidade(newEntity);
@@ -405,6 +407,7 @@
       
       // Show success message
       alert('Entidade adicionada com sucesso!');
+      location.reload();
       
     } catch (err) {
       submitError = err.message || 'Erro ao adicionar entidade';
@@ -480,22 +483,6 @@
         </button>
       </div>
 
-      <div class="sub-tabs">
-        <button 
-          class="sub-tab-button {activeSubTab === 'table' ? 'active' : ''}"
-          on:click={() => {activeSubTab = 'table'; selectedEntity = null;}}
-        >
-          Listagem
-        </button>
-        <button 
-          class="sub-tab-button {activeSubTab === 'details' ? 'active' : ''}"
-          on:click={() => activeSubTab = 'details'}
-          disabled={!selectedEntity}
-        >
-          Detalhes {selectedEntity ? `- ${selectedEntity.fornecedor}` : ''}
-        </button>
-      </div>
-
       <!-- Add Entity Button -->
       <div class="action-bar">
         <button class="btn-add-entity" on:click={openAddModal}>
@@ -532,11 +519,11 @@
                       <td class="status-{getStatusFornecedor(forn).class}">{getStatusFornecedor(forn).text}</td>
                       <td>
                         <button 
-                          class="btn-details"
-                          on:click={() => window.location.href = `EntidadeDetail.svelte?id=${forn.id}`}
-                        >
-                          Ver Detalhes
-                        </button>
+                        class="btn-details" 
+                        on:click={() => window.open(`/obras/entidade/${forn.id}`, "_self")}
+                      >
+                        Ver Detalhes
+                      </button>
                       </td>
                     </tr>
                   {/each}
@@ -568,11 +555,11 @@
                       <td class="status-{getStatusEmpreitada(emp).class}">{getStatusEmpreitada(emp).text}</td>
                       <td>
                         <button 
-                          class="btn-details"
-                          on:click={() => window.location.href = `EntidadeDetail.svelte?id=${emp.id}`}
-                        >
-                          Ver Detalhes
-                        </button>
+                        class="btn-details" 
+                        on:click={() => window.open(`/obras/entidade/${emp.id}`, "_self")}
+                      >
+                        Ver Detalhes
+                      </button>
                       </td>
                     </tr>
                   {/each}
@@ -604,11 +591,11 @@
                       <td class="status-{getStatusAluguer(alug).class}">{getStatusAluguer(alug).text}</td>
                       <td>
                         <button 
-                          class="btn-details"
-                          on:click={() => window.location.href = `EntidadeDetail.svelte?id=${alug.id}`}
-                        >
-                          Ver Detalhes
-                        </button>
+                        class="btn-details" 
+                        on:click={() => window.open(`/obras/entidade/${alug.id}`, "_self")}
+                      >
+                        Ver Detalhes
+                      </button>
                       </td>
                     </tr>
                   {/each}
@@ -690,11 +677,7 @@
                         </div>
                         <div class="rating-item">
                           <span>Gestão Reclamações:</span>
-                          <span class="rating-value">
-                            {selectedEntity.parametrosFornecedor?.gestao_reclamacoes !== null 
-                              ? `${selectedEntity.parametrosFornecedor.gestao_reclamacoes}/5`
-                              : '3/5 (não aplicável)'}
-                          </span>
+                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.gestao_reclamacoes || 0} </span>
                         </div>
                       
                       {:else if activeMainTab === 'empreitadas'}
@@ -750,11 +733,7 @@
                         </div>
                         <div class="rating-item">
                           <span>Manutenção/Assist. Técnica:</span>
-                          <span class="rating-value">
-                            {selectedEntity.parametrosAluguer?.manuntencao_assistenciaTecnica !== null 
-                              ? `${selectedEntity.parametrosAluguer.manuntencao_assistenciaTecnica}/5`
-                              : '3/5 (não aplicável)'}
-                          </span>
+                          <span class="rating-value">{selectedEntity.parametrosAluguer?.manuntencao_assistenciaTecnica || 0}</span>
                         </div>
                       {/if}
                     </div>
@@ -906,31 +885,14 @@
                   
                   <div class="form-group">
                     <label for="gestao_reclamacoes">Gestão Reclamações (1-5)</label>
-                    <div class="checkbox-group">
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          on:change={() => {
-                            if (newEntity.parametrosFornecedor.gestao_reclamacoes === null) {
-                              newEntity.parametrosFornecedor.gestao_reclamacoes = 3;
-                            } else {
-                              newEntity.parametrosFornecedor.gestao_reclamacoes = null;
-                            }
-                          }}
-                        />
-                        Não aplicável (valor médio 3)
-                      </label>
-                    </div>
-                    {#if newEntity.parametrosFornecedor.gestao_reclamacoes !== null}
-                      <input 
-                        type="range" 
-                        id="gestao_reclamacoes" 
-                        min="1" 
-                        max="5" 
-                        bind:value={newEntity.parametrosFornecedor.gestao_reclamacoes}
-                      />
-                      <span class="range-value">{newEntity.parametrosFornecedor.gestao_reclamacoes}</span>
-                    {/if}
+                    <input 
+                      type="range" 
+                      id="gestao_reclamacoes" 
+                      min="1" 
+                      max="5" 
+                      bind:value={newEntity.parametrosFornecedor.gestao_reclamacoes}
+                    />
+                    <span class="range-value">{newEntity.parametrosFornecedor.gestao_reclamacoes}</span>
                   </div>
                 </div>
               {/if}
@@ -1087,31 +1049,14 @@
                   
                   <div class="form-group">
                     <label for="manuntencao_assistenciaTecnica">Manutenção/Assist. Técnica (1-5)</label>
-                    <div class="checkbox-group">
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          on:change={() => {
-                            if (newEntity.parametrosAluguer.manuntencao_assistenciaTecnica === null) {
-                              newEntity.parametrosAluguer.manuntencao_assistenciaTecnica = 3;
-                            } else {
-                              newEntity.parametrosAluguer.manuntencao_assistenciaTecnica = null;
-                            }
-                          }}
-                        />
-                        Não aplicável (valor médio 3)
-                      </label>
-                    </div>
-                    {#if newEntity.parametrosAluguer.manuntencao_assistenciaTecnica !== null}
-                      <input 
-                        type="range" 
-                        id="manuntencao_assistenciaTecnica" 
-                        min="1" 
-                        max="5" 
-                        bind:value={newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}
-                      />
-                      <span class="range-value">{newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}</span>
-                    {/if}
+                    <input 
+                      type="range" 
+                      id="manuntencao_assistenciaTecnica" 
+                      min="1" 
+                      max="5" 
+                      bind:value={newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}
+                    />
+                    <span class="range-value">{newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}</span>
                   </div>
                 </div>
               {/if}
