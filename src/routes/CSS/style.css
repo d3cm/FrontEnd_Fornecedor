@@ -977,15 +977,6 @@ h2 {
   gap: 5px;
 }
 
-.parameters-grid input[type='range'] {
-  -webkit-appearance: none;
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: #ddd;
-  outline: none;
-}
-
 .parameters-grid input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
