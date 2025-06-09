@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import { getObra_Entidade_ParametroById, postEntidade } from '../../api/api';
+  import { getObra_Entidade_ParametroById, postEntidade, putEntidade } from '../../api/api';
   import '../CSS/style.css';
   import { goto } from '@roxi/routify';
+  
 
   const API_URL = 'http://localhost:3000/api'; // Adjust according to your API URL
 
@@ -13,13 +14,19 @@
   let selectedEntity = null;
   let activeMainTab = 'fornecedores';
   let activeSubTab = 'table';
-  
-  // Modal state
-  let showAddModal = false;
+
+  // Edit state
+  let editingId = null;
+  let showEditModal = false;
+  let currentEntidadeType = '';
+  let formData = {};
   let isSubmitting = false;
   let submitError = null;
   
-  // Form data
+  // Add modal state
+  let showAddModal = false;
+  
+  // Form data for new entity
   let newEntity = {
     tipo: '',
     fornecedor: '',
@@ -127,6 +134,154 @@
     total += params.manuntencao_assistenciaTecnica || 0;
     
     return total;
+  }
+
+  function openEditModal(entidade) {
+    editingId = entidade.id;
+    currentEntidadeType = entidade.tipo;
+    
+    // Base fields common to all entity types
+    formData = {
+      tipo: entidade.tipo,
+      fornecedor: entidade.fornecedor,
+      contribuinte: entidade.contribuinte || 0,
+      especialidade: entidade.especialidade,
+      observacoes: entidade.observacoes || '',
+      id_obra: entidade.id_obra
+    };
+    
+    // Add specific parameters based on entity type
+    switch(entidade.tipo) {
+      case 'aluguer':
+        formData = {
+          ...formData,
+          capacidade_resposta: entidade.parametrosAluguer?.capacidade_resposta || 1,
+          qualidade_equipamento: entidade.parametrosAluguer?.qualidade_equipamento || 1,
+          cumprimento_prazo: entidade.parametrosAluguer?.cumprimento_prazo || 1,
+          desempenho_ambiental: entidade.parametrosAluguer?.desempenho_ambiental || 1,
+          manuntencao_assistenciaTecnica: entidade.parametrosAluguer?.manuntencao_assistenciaTecnica || 1
+        };
+        break;
+        
+      case 'empreitada':
+        formData = {
+          ...formData,
+          resposta_solitacoes: entidade.parametrosEmpreitada?.resposta_solitacoes || 1,
+          respeito_normas_seguranca: entidade.parametrosEmpreitada?.respeito_normas_seguranca || 1,
+          respeito_normas_ambientais: entidade.parametrosEmpreitada?.respeito_normas_ambientais || 1,
+          comformidade_servico: entidade.parametrosEmpreitada?.comformidade_servico || 1,
+          cumprimento_prazos: entidade.parametrosEmpreitada?.cumprimento_prazos || 1,
+          capacidade_negocial: entidade.parametrosEmpreitada?.capacidade_negocial || 1,
+          competencia_execucao_correcoes: entidade.parametrosEmpreitada?.competencia_execucao_correcoes || 1,
+          entrega_documentacao: entidade.parametrosEmpreitada?.entrega_documentacao || 1
+        };
+        break;
+        
+      case 'fornecedor':
+        formData = {
+          ...formData,
+          qualidade_materiais: entidade.parametrosFornecedor?.qualidade_materiais || 1,
+          cumprimento_prazos: entidade.parametrosFornecedor?.cumprimento_prazos || 1,
+          relacao_qualidadePreco: entidade.parametrosFornecedor?.relacao_qualidadePreco || 1,
+          cumprimento_regras: entidade.parametrosFornecedor?.cumprimento_regras || 1,
+          gestao_reclamacoes: entidade.parametrosFornecedor?.gestao_reclamacoes || 1
+        };
+        break;
+    }
+    
+    showEditModal = true;
+  }
+
+  function closeEditModal() {
+    showEditModal = false;
+    formData = {};
+    editingId = null;
+    submitError = null;
+  }
+
+  async function submitEditEntity() {
+    isSubmitting = true;
+    submitError = null;
+    
+    try {
+      // Validate required fields
+      if (!formData.fornecedor.trim()) {
+        throw new Error('Nome do fornecedor é obrigatório');
+      }
+      
+      if (!formData.especialidade.trim()) {
+        throw new Error('Especialidade é obrigatória');
+      }
+      
+      // Prepare the data to send
+      const entityData = {
+        tipo: formData.tipo,
+        fornecedor: formData.fornecedor,
+        contribuinte: formData.contribuinte,
+        especialidade: formData.especialidade,
+        observacoes: formData.observacoes,
+        id_obra: formData.id_obra
+      };
+      
+      // Prepare parameters data based on type
+      let paramsData = {};
+      switch(formData.tipo) {
+        case 'aluguer':
+          paramsData = {
+            capacidade_resposta: formData.capacidade_resposta,
+            qualidade_equipamento: formData.qualidade_equipamento,
+            cumprimento_prazo: formData.cumprimento_prazo,
+            desempenho_ambiental: formData.desempenho_ambiental,
+            manuntencao_assistenciaTecnica: formData.manuntencao_assistenciaTecnica
+          };
+          break;
+        case 'empreitada':
+          paramsData = {
+            resposta_solitacoes: formData.resposta_solitacoes,
+            respeito_normas_seguranca: formData.respeito_normas_seguranca,
+            respeito_normas_ambientais: formData.respeito_normas_ambientais,
+            comformidade_servico: formData.comformidade_servico,
+            cumprimento_prazos: formData.cumprimento_prazos,
+            capacidade_negocial: formData.capacidade_negocial,
+            competencia_execucao_correcoes: formData.competencia_execucao_correcoes,
+            entrega_documentacao: formData.entrega_documentacao
+          };
+          break;
+        case 'fornecedor':
+          paramsData = {
+            qualidade_materiais: formData.qualidade_materiais,
+            cumprimento_prazos: formData.cumprimento_prazos,
+            relacao_qualidadePreco: formData.relacao_qualidadePreco,
+            cumprimento_regras: formData.cumprimento_regras,
+            gestao_reclamacoes: formData.gestao_reclamacoes
+          };
+          break;
+      }
+      
+      // Combine all data for the PUT request
+      const dataToSend = {
+        ...entityData,
+        parametrosFornecedor: formData.tipo === 'fornecedor' ? paramsData : null,
+        parametrosEmpreitada: formData.tipo === 'empreitada' ? paramsData : null,
+        parametrosAluguer: formData.tipo === 'aluguer' ? paramsData : null
+      };
+      
+      // Call API to update
+      await putEntidade(editingId, dataToSend);
+      
+      // Refresh the data
+      obraData = await getObra_Entidade_ParametroById(id);
+      
+      closeEditModal();
+      
+      // Show success message
+      alert('Entidade atualizada com sucesso!');
+      
+    } catch (err) {
+      submitError = err.message || 'Erro ao atualizar entidade';
+    } finally {
+      isSubmitting = false;
+    }
   }
 
   // Get status classification for fornecedor
@@ -517,13 +672,21 @@
                       <td>{forn.especialidade}</td>
                       <td class="rating">{calculateFornecedorScore(forn)}</td>
                       <td class="status-{getStatusFornecedor(forn).class}">{getStatusFornecedor(forn).text}</td>
-                      <td>
-                        <button 
-                        class="btn-details" 
-                        on:click={() => window.open(`/obras/entidade/${forn.id}`, "_self")}
-                      >
-                        Ver Detalhes
-                      </button>
+                      <td class="actions-cell">
+                        <div class="actions-buttons">
+                          <button 
+                            class="btn-details" 
+                            on:click={() => window.open(`/obras/entidade/${forn.id}`, "_self")}
+                          >
+                            Ver Detalhes
+                          </button>
+                          <button 
+                            class="edit-button"
+                            on:click={() => openEditModal(forn)}
+                          >
+                            Editar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   {/each}
@@ -553,13 +716,21 @@
                       <td>{emp.especialidade}</td>
                       <td class="rating">{calculateEmpreitadaScore(emp)}</td>
                       <td class="status-{getStatusEmpreitada(emp).class}">{getStatusEmpreitada(emp).text}</td>
-                      <td>
-                        <button 
-                        class="btn-details" 
-                        on:click={() => window.open(`/obras/entidade/${emp.id}`, "_self")}
-                      >
-                        Ver Detalhes
-                      </button>
+                      <td class="actions-cell">
+                        <div class="actions-buttons">
+                          <button 
+                            class="btn-details" 
+                            on:click={() => window.open(`/obras/entidade/${emp.id}`, "_self")}
+                          >
+                            Ver Detalhes
+                          </button>
+                          <button 
+                            class="btn-edit"
+                            on:click={() => openEditModal(emp)}
+                          >
+                            Editar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   {/each}
@@ -568,189 +739,50 @@
             {/if}
       
             {#if activeMainTab === 'alugueres'}
-              <table class="entidades-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>Contribuinte</th>
-                    <th>Especialidade</th>
-                    <th>Pontuação</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each getCurrentEntities() as alug (alug.id)}
-                    <tr class="table-row">
-                      <td>{alug.id}</td>
-                      <td class="fornecedor-name">{alug.fornecedor}</td>
-                      <td>{alug.contribuinte || 'N/A'}</td>
-                      <td>{alug.especialidade || 'N/A'}</td>
-                      <td class="rating">{calculateAluguerScore(alug)}</td>
-                      <td class="status-{getStatusAluguer(alug).class}">{getStatusAluguer(alug).text}</td>
-                      <td>
+            <table class="entidades-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nome</th>
+                  <th>Contribuinte</th>
+                  <th>Especialidade</th>
+                  <th>Pontuação</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each getCurrentEntities() as alug (alug.id)}
+                  <tr class="table-row">
+                    <td>{alug.id}</td>
+                    <td class="fornecedor-name">{alug.fornecedor}</td>
+                    <td>{alug.contribuinte || 'N/A'}</td>
+                    <td>{alug.especialidade || 'N/A'}</td>
+                    <td class="rating">{calculateAluguerScore(alug)}</td>
+                    <td class="status-{getStatusAluguer(alug).class}">{getStatusAluguer(alug).text}</td>
+                    <td class="actions-cell">
+                      <div class="actions-buttons">
                         <button 
-                        class="btn-details" 
-                        on:click={() => window.open(`/obras/entidade/${alug.id}`, "_self")}
-                      >
-                        Ver Detalhes
-                      </button>
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            {/if}
+                          class="btn-details" 
+                          on:click={() => window.open(`/obras/entidade/${alug.id}`, "_self")}
+                        >
+                          Ver Detalhes
+                        </button>
+                        <button 
+                          class="btn-edit"
+                          on:click={() => openEditModal(alug)}
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {/if}
           </div>
         {/if}
-
-          {#if activeSubTab === 'details' && selectedEntity}
-            <div class="details-container">
-              <div class="details-header">
-                <div>
-                  <h3>{selectedEntity.fornecedor}</h3>
-                  <p class="details-subtitle">ID: {selectedEntity.id} | Contribuinte: {selectedEntity.contribuinte}</p>
-                </div>
-                <button class="btn-close" on:click={closeDetails}>×</button>
-              </div>
-
-              <div class="details-content">
-                <div class="details-grid">
-                  <div class="detail-card">
-                    <h4>Informações Gerais</h4>
-                    <div class="detail-item">
-                      <strong>Especialidade:</strong> {selectedEntity.especialidade}
-                    </div>
-                    <div class="detail-item">
-                      <strong>Tipo:</strong> {selectedEntity.tipo}
-                    </div>
-                    <div class="detail-item">
-                      <strong>Data Criação:</strong> {formatDate(selectedEntity.data_criacao)}
-                    </div>
-                    <div class="detail-item">
-                      <strong>Classificação Total:</strong> 
-                      {#if activeMainTab === 'fornecedores'}
-                        {calculateFornecedorScore(selectedEntity)} pontos
-                      {:else if activeMainTab === 'empreitadas'}
-                        {calculateEmpreitadaScore(selectedEntity)} pontos
-                      {:else if activeMainTab === 'alugueres'}
-                        {calculateAluguerScore(selectedEntity)} pontos
-                      {/if}
-                    </div>
-                    <div class="detail-item">
-                      <strong>Status:</strong> 
-                      {#if activeMainTab === 'fornecedores'}
-                        <span class="status-{getStatusFornecedor(selectedEntity).class}">{getStatusFornecedor(selectedEntity).text}</span>
-                        <p class="status-description">{getStatusFornecedor(selectedEntity).description}</p>
-                      {:else if activeMainTab === 'empreitadas'}
-                        <span class="status-{getStatusEmpreitada(selectedEntity).class}">{getStatusEmpreitada(selectedEntity).text}</span>
-                        <p class="status-description">{getStatusEmpreitada(selectedEntity).description}</p>
-                      {:else if activeMainTab === 'alugueres'}
-                        <span class="status-{getStatusAluguer(selectedEntity).class}">{getStatusAluguer(selectedEntity).text}</span>
-                        <p class="status-description">{getStatusAluguer(selectedEntity).description}</p>
-                      {/if}
-                    </div>
-                  </div>
-                
-
-                  <div class="detail-card">
-                    <h4>Avaliações</h4>
-                    <div class="ratings-grid">
-                      
-                      {#if activeMainTab === 'fornecedores'}
-                        <div class="rating-item">
-                          <span>Qualidade Materiais:</span>
-                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.qualidade_materiais || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Cumprimento Prazos:</span>
-                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.cumprimento_prazos || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Relação Qualidade/Preço:</span>
-                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.relacao_qualidadePreco || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Cumprimento Regras:</span>
-                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.cumprimento_regras || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Gestão Reclamações:</span>
-                          <span class="rating-value">{selectedEntity.parametrosFornecedor?.gestao_reclamacoes || 0} </span>
-                        </div>
-                      
-                      {:else if activeMainTab === 'empreitadas'}
-                        <div class="rating-item">
-                          <span>Resposta Solicitações:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.resposta_solitacoes || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Normas Segurança:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.respeito_normas_seguranca || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Normas Ambientais:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.respeito_normas_ambientais || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Conformidade Serviço:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.comformidade_servico || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Cumprimento Prazos:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.cumprimento_prazos || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Capacidade Negocial:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.capacidade_negocial || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Competência Execução:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.competencia_execucao_correcoes || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Entrega Documentação:</span>
-                          <span class="rating-value">{selectedEntity.parametrosEmpreitada?.entrega_documentacao || 0}/5</span>
-                        </div>
-                      
-                      {:else if activeMainTab === 'alugueres'}
-                        <div class="rating-item">
-                          <span>Capacidade Resposta:</span>
-                          <span class="rating-value">{selectedEntity.parametrosAluguer?.capacidade_resposta || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Qualidade Equipamento:</span>
-                          <span class="rating-value">{selectedEntity.parametrosAluguer?.qualidade_equipamento || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Cumprimento Prazo:</span>
-                          <span class="rating-value">{selectedEntity.parametrosAluguer?.cumprimento_prazo || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Desempenho Ambiental:</span>
-                          <span class="rating-value">{selectedEntity.parametrosAluguer?.desempenho_ambiental || 0}/5</span>
-                        </div>
-                        <div class="rating-item">
-                          <span>Manutenção/Assist. Técnica:</span>
-                          <span class="rating-value">{selectedEntity.parametrosAluguer?.manuntencao_assistenciaTecnica || 0}</span>
-                        </div>
-                      {/if}
-                    </div>
-                  </div>
-                </div>
-
-                {#if selectedEntity.observacoes && selectedEntity.observacoes.trim()}
-                  <div class="observacoes-card">
-                    <h4>Observações</h4>
-                    <div class="observacoes-content">
-                      {selectedEntity.observacoes}
-                    </div>
-                  </div>
-                {/if}
-              </div>
-            </div>
-          {/if}
         {:else}
           <div class="no-data">
             <p>Nenhuma entidade do tipo "{activeMainTab}" encontrada.</p>
@@ -760,12 +792,330 @@
     </div>
   </div>
 
-  <!-- Add Entity Modal -->
+  <!-- Edit Modal -->
+  {#if showEditModal}
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <div class="modal-overlay" on:click={closeEditModal}>
+      <div class="modal-content" on:click|stopPropagation>
+        <div class="modal-header">
+          <h3>Editar {currentEntidadeType === 'fornecedor' ? 'Fornecedor' : currentEntidadeType === 'empreitada' ? 'Empreitada' : 'Aluguer'}</h3>
+          <button class="btn-close" on:click={closeEditModal}>×</button>
+        </div>
+        
+        <div class="modal-body">
+          {#if submitError}
+            <div class="error-banner">
+              {submitError}
+            </div>
+          {/if}
+          
+          <form on:submit|preventDefault={submitEditEntity}>
+            <!-- Basic Information -->
+            <div class="form-section">
+              <h4>Informações Básicas</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-fornecedor">Nome *</label>
+                  <input 
+                    type="text" 
+                    id="edit-fornecedor" 
+                    bind:value={formData.fornecedor} 
+                    required 
+                    placeholder="Nome da entidade"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="edit-contribuinte">Contribuinte</label>
+                  <input 
+                    type="number" 
+                    id="edit-contribuinte" 
+                    bind:value={formData.contribuinte} 
+                    placeholder="Número de contribuinte"
+                  />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-especialidade">Especialidade *</label>
+                  <input 
+                    type="text" 
+                    id="edit-especialidade" 
+                    bind:value={formData.especialidade} 
+                    required 
+                    placeholder="Especialidade da entidade"
+                  />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-observacoes">Observações</label>
+                  <textarea 
+                    id="edit-observacoes" 
+                    bind:value={formData.observacoes} 
+                    placeholder="Observações adicionais"
+                    rows="3"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Parameters Section -->
+            <div class="form-section">
+              <h4>Parâmetros de Avaliação</h4>
+              
+              {#if currentEntidadeType === 'fornecedor'}
+                <div class="parameters-grid">
+                  <div class="form-group">
+                    <label for="edit-qualidade_materiais">Qualidade Materiais (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-qualidade_materiais" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.qualidade_materiais}
+                    />
+                    <span class="range-value">{formData.qualidade_materiais}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-cumprimento_prazos">Cumprimento Prazos (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-cumprimento_prazos" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.cumprimento_prazos}
+                    />
+                    <span class="range-value">{formData.cumprimento_prazos}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-relacao_qualidadePreco">Relação Qualidade/Preço (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-relacao_qualidadePreco" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.relacao_qualidadePreco}
+                    />
+                    <span class="range-value">{formData.relacao_qualidadePreco}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-cumprimento_regras">Cumprimento Regras (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-cumprimento_regras" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.cumprimento_regras}
+                    />
+                    <span class="range-value">{formData.cumprimento_regras}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-gestao_reclamacoes">Gestão Reclamações (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-gestao_reclamacoes" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.gestao_reclamacoes}
+                    />
+                    <span class="range-value">{formData.gestao_reclamacoes}</span>
+                  </div>
+                </div>
+              {/if}
+
+              {#if currentEntidadeType === 'empreitada'}
+                <div class="parameters-grid">
+                  <div class="form-group">
+                    <label for="edit-resposta_solitacoes">Resposta Solicitações (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-resposta_solitacoes" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.resposta_solitacoes}
+                    />
+                    <span class="range-value">{formData.resposta_solitacoes}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-respeito_normas_seguranca">Normas Segurança (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-respeito_normas_seguranca" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.respeito_normas_seguranca}
+                    />
+                    <span class="range-value">{formData.respeito_normas_seguranca}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-respeito_normas_ambientais">Normas Ambientais (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-respeito_normas_ambientais" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.respeito_normas_ambientais}
+                    />
+                    <span class="range-value">{formData.respeito_normas_ambientais}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-comformidade_servico">Conformidade Serviço (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-comformidade_servico" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.comformidade_servico}
+                    />
+                    <span class="range-value">{formData.comformidade_servico}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-cumprimento_prazos">Cumprimento Prazos (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-cumprimento_prazos" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.cumprimento_prazos}
+                    />
+                    <span class="range-value">{formData.cumprimento_prazos}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-capacidade_negocial">Capacidade Negocial (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-capacidade_negocial" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.capacidade_negocial}
+                    />
+                    <span class="range-value">{formData.capacidade_negocial}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-competencia_execucao_correcoes">Competência Execução (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-competencia_execucao_correcoes" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.competencia_execucao_correcoes}
+                    />
+                    <span class="range-value">{formData.competencia_execucao_correcoes}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-entrega_documentacao">Entrega Documentação (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-entrega_documentacao" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.entrega_documentacao}
+                    />
+                    <span class="range-value">{formData.entrega_documentacao}</span>
+                  </div>
+                </div>
+              {/if}
+
+              {#if currentEntidadeType === 'aluguer'}
+                <div class="parameters-grid">
+                  <div class="form-group">
+                    <label for="edit-capacidade_resposta">Capacidade Resposta (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-capacidade_resposta" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.capacidade_resposta}
+                    />
+                    <span class="range-value">{formData.capacidade_resposta}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-qualidade_equipamento">Qualidade Equipamento (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-qualidade_equipamento" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.qualidade_equipamento}
+                    />
+                    <span class="range-value">{formData.qualidade_equipamento}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-cumprimento_prazo">Cumprimento Prazo (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-cumprimento_prazo" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.cumprimento_prazo}
+                    />
+                    <span class="range-value">{formData.cumprimento_prazo}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-desempenho_ambiental">Desempenho Ambiental (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-desempenho_ambiental" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.desempenho_ambiental}
+                    />
+                    <span class="range-value">{formData.desempenho_ambiental}</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit-manuntencao_assistenciaTecnica">Manutenção/Assist. Técnica (1-5)</label>
+                    <input 
+                      type="range" 
+                      id="edit-manuntencao_assistenciaTecnica" 
+                      min="1" 
+                      max="5" 
+                      bind:value={formData.manuntencao_assistenciaTecnica}
+                    />
+                    <span class="range-value">{formData.manuntencao_assistenciaTecnica}</span>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          </form>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn-cancel" on:click={closeEditModal}>
+            Cancelar
+          </button>
+          <button 
+            type="button" 
+            class="btn-submit" 
+            on:click={submitEditEntity}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'A atualizar...' : 'Atualizar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if showAddModal}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="modal-overlay" on:click={closeAddModal}>
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
       <div class="modal-content" on:click|stopPropagation>
         <div class="modal-header">
           <h3>Adicionar {activeMainTab === 'fornecedores' ? 'Fornecedor' : activeMainTab === 'empreitadas' ? 'Empreitada' : 'Aluguer'}</h3>

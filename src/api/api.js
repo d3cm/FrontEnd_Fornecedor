@@ -60,3 +60,14 @@ export async function postEntidade(entidade) {
   })
   return await response.json()
 }
+
+export async function putEntidade(Id, data) {
+  const response = await fetch(`${API_URL}/Entidade/${Id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  return await response.json()
+}
