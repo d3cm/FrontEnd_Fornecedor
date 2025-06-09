@@ -1,8 +1,6 @@
-<!-- src/routes/obras/entidade/[id].svelte -->
 <script>
   import { onMount } from 'svelte';
   import { getEntidadeId, getObra_Entidade_ParametroById } from '../../../api/api';
-  import { goto } from '@roxi/routify';
   import '../../CSS/style.css';
 
   let id = null;
@@ -11,7 +9,6 @@
   let loading = true;
   let error = null;
 
-  // Função para extrair o ID da URL
   function getIdFromUrl() {
     const pathParts = window.location.pathname.split('/');
     const idIndex = pathParts.indexOf('entidade') + 1;
@@ -21,14 +18,12 @@
     return null;
   }
 
-  // Função para formatar datas
   function formatDate(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-PT');
   }
 
-  // Função para voltar à página anterior
   const voltar = () => {
     window.history.back();
   }
@@ -41,14 +36,12 @@
         throw new Error('ID da entidade não encontrado na URL');
       }
       
-      // Carrega os dados da entidade
       entidadeData = await getEntidadeId(id);
       
       if (!entidadeData) {
         throw new Error('Entidade não encontrada');
       }
       
-      // Carrega os dados da obra associada (se existir ID de obra)
       if (entidadeData.id_obra) {
         obraData = await getObra_Entidade_ParametroById(entidadeData.id_obra);
       }
@@ -60,7 +53,6 @@
     }
   });
 
-  // Funções para calcular pontuação (adaptadas do seu código anterior)
   function calculateFornecedorScore(fornecedor) {
     if (!fornecedor.parametrosFornecedor) return 0;
     
@@ -109,7 +101,6 @@
     return total;
   }
 
-  // Funções para obter status (adaptadas do seu código anterior)
   function getStatusFornecedor(fornecedor) {
     const score = calculateFornecedorScore(fornecedor);
     
@@ -140,7 +131,6 @@
     return { text: 'Indefinido', class: 'undefined' };
   }
 
-  // Determina qual função de status usar baseado no tipo da entidade
   function getEntityStatus(entity) {
     if (!entity.tipo) return { text: 'Indefinido', class: 'undefined' };
     
@@ -153,7 +143,6 @@
     return { text: 'Indefinido', class: 'undefined' };
   }
 
-  // Calcula a pontuação baseada no tipo da entidade
   function calculateEntityScore(entity) {
     if (!entity.tipo) return 0;
     
@@ -187,7 +176,6 @@
     </div>
 
     <div class="entity-info-grid">
-      <!-- Informações Básicas -->
       <div class="info-card">
         <h2>Informações Básicas</h2>
         <div class="info-item">
@@ -214,7 +202,6 @@
         </div>
       </div>
 
-      <!-- Informações da Obra Associada -->
       {#if obraData && obraData.obra}
         <div class="info-card">
           <h2>Obra Associada</h2>
@@ -234,7 +221,6 @@
       {/if}
     </div>
 
-    <!-- Parâmetros de Avaliação -->
     <div class="parameters-section">
       <h2>Parâmetros de Avaliação</h2>
       
@@ -324,7 +310,6 @@
       {/if}
     </div>
 
-    <!-- Observações -->
     {#if entidadeData.observacoes && entidadeData.observacoes.trim()}
       <div class="observations-card">
         <h2>Observações</h2>
@@ -343,7 +328,6 @@
 {/if}
 
 <style>
-  /* Estilos básicos - adapte conforme necessário */
   .entity-detail-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -425,7 +409,6 @@
     white-space: pre-line;
   }
 
-  /* Classes de status */
   .status-eliminated { color: #ff4444; }
   .status-risk { color: #ffbb33; }
   .status-approved { color: #00C851; }

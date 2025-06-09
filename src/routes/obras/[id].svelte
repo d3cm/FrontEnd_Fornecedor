@@ -1,11 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getObra_Entidade_ParametroById, postEntidade, putEntidade } from '../../api/api';
-  import '../CSS/style.css';
-  import { goto } from '@roxi/routify';
-  
-
-  const API_URL = 'http://localhost:3000/api'; // Adjust according to your API URL
+  import '../CSS/style.css'; 
 
   let id = null;
   let obraData = null;
@@ -15,7 +11,6 @@
   let activeMainTab = 'fornecedores';
   let activeSubTab = 'table';
 
-  // Edit state
   let editingId = null;
   let showEditModal = false;
   let currentEntidadeType = '';
@@ -23,10 +18,8 @@
   let isSubmitting = false;
   let submitError = null;
   
-  // Add modal state
   let showAddModal = false;
-  
-  // Form data for new entity
+
   let newEntity = {
     tipo: '',
     fornecedor: '',
@@ -83,7 +76,6 @@
     window.location.href = 'http://localhost:1337';
   }
 
-  // Calculate total score for fornecedor
   function calculateFornecedorScore(fornecedor) {
     if (!fornecedor.parametrosFornecedor) return 0;
     
@@ -95,13 +87,11 @@
     total += params.relacao_qualidadePreco || 0;
     total += params.cumprimento_regras || 0;
     
-    // Gestão de reclamações - if not applicable, use 3 as default
     total += params.gestao_reclamacoes !== null ? params.gestao_reclamacoes : 3;
     
     return total;
   }
 
-  // Calculate total score for empreitada
   function calculateEmpreitadaScore(empreitada) {
     if (!empreitada.parametrosEmpreitada) return 0;
     
@@ -120,7 +110,6 @@
     return total;
   }
 
-  // Calculate total score for aluguer
   function calculateAluguerScore(aluguer) {
     if (!aluguer.parametrosAluguer) return 0;
     
@@ -139,8 +128,7 @@
   function openEditModal(entidade) {
     editingId = entidade.id;
     currentEntidadeType = entidade.tipo;
-    
-    // Base fields common to all entity types
+
     formData = {
       tipo: entidade.tipo,
       fornecedor: entidade.fornecedor,
@@ -149,8 +137,7 @@
       observacoes: entidade.observacoes || '',
       id_obra: entidade.id_obra
     };
-    
-    // Add specific parameters based on entity type
+
     switch(entidade.tipo) {
       case 'aluguer':
         formData = {
@@ -204,7 +191,6 @@
     submitError = null;
     
     try {
-      // Validate required fields
       if (!formData.fornecedor.trim()) {
         throw new Error('Nome do fornecedor é obrigatório');
       }
@@ -213,7 +199,6 @@
         throw new Error('Especialidade é obrigatória');
       }
       
-      // Prepare the data to send
       const entityData = {
         tipo: formData.tipo,
         fornecedor: formData.fornecedor,
@@ -223,7 +208,6 @@
         id_obra: formData.id_obra
       };
       
-      // Prepare parameters data based on type
       let paramsData = {};
       switch(formData.tipo) {
         case 'aluguer':
@@ -258,7 +242,6 @@
           break;
       }
       
-      // Combine all data for the PUT request
       const dataToSend = {
         ...entityData,
         parametrosFornecedor: formData.tipo === 'fornecedor' ? paramsData : null,
@@ -266,16 +249,14 @@
         parametrosAluguer: formData.tipo === 'aluguer' ? paramsData : null
       };
       
-      // Call API to update
       await putEntidade(editingId, dataToSend);
       
-      // Refresh the data
       obraData = await getObra_Entidade_ParametroById(id);
       
       closeEditModal();
-      
-      // Show success message
+
       alert('Entidade atualizada com sucesso!');
+      location.reload();
       
     } catch (err) {
       submitError = err.message || 'Erro ao atualizar entidade';
@@ -284,7 +265,6 @@
     }
   }
 
-  // Get status classification for fornecedor
   function getStatusFornecedor(fornecedor) {
     const score = calculateFornecedorScore(fornecedor);
     
@@ -320,7 +300,6 @@
     };
   }
 
-  // Get status classification for empreitada
   function getStatusEmpreitada(empreitada) {
     const score = calculateEmpreitadaScore(empreitada);
     
@@ -356,7 +335,6 @@
     };
   }
 
-  // Get status classification for aluguer
   function getStatusAluguer(aluguer) {
     const score = calculateAluguerScore(aluguer);
     
@@ -411,26 +389,22 @@
       const tipoNormalizado = entidade.tipo.toLowerCase().trim();
       const tipoFiltro = type.toLowerCase().trim();
       
-      // Mapeamento mais abrangente para capturar variações
       const tipoMapping = {
         'fornecedor': ['fornecedor', 'fornecedores'],
         'empreitada': ['empreitada', 'empreitadas', 'empreiteiro', 'empreiteiros'],
         'aluguer': ['aluguer', 'alugueres', 'aluguel', 'aluguéis', 'alugadores', 'alugador']
       };
       
-      // Primeiro, verifica correspondência exata
       if (tipoNormalizado === tipoFiltro) {
         return true;
       }
       
-      // Depois verifica o mapeamento
       for (const [key, values] of Object.entries(tipoMapping)) {
         if (values.includes(tipoFiltro) && values.includes(tipoNormalizado)) {
           return true;
         }
       }
-      
-      // Verifica se contém a palavra-chave
+
       if (tipoNormalizado.includes(tipoFiltro) || tipoFiltro.includes(tipoNormalizado)) {
         return true;
       }
@@ -467,7 +441,6 @@
     selectedEntity = null;
   }
 
-  // Modal functions
   function openAddModal() {
     resetForm();
     showAddModal = true;
@@ -542,7 +515,6 @@
     submitError = null;
     
     try {
-      // Validate required fields
       if (!newEntity.fornecedor.trim()) {
         throw new Error('Nome do fornecedor é obrigatório');
       }
@@ -551,16 +523,12 @@
         throw new Error('Especialidade é obrigatória');
       }
       
-
-      // Call postEntidade function
       const result = await postEntidade(newEntity);
       
-      // Refresh the data
       obraData = await getObra_Entidade_ParametroById(id);
       
       closeAddModal();
-      
-      // Show success message
+
       alert('Entidade adicionada com sucesso!');
       location.reload();
       

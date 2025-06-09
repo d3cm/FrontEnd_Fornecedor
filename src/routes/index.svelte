@@ -95,7 +95,6 @@
   }
 
   function handleRowClick(obra, event) {
-    // Verificar se o clique foi no botão de editar
     if (event.target.closest('.btn-edit')) {
       return;
     }
