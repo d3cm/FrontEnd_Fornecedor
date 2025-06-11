@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import { getObras, postObra, putObra } from '../api/api';
-  import { goto } from '@roxi/routify';
   import './CSS/style.css';
 
   let obras = [];

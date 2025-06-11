@@ -1,15 +1,20 @@
 <script>
   import { onMount } from 'svelte';
-  import { getObra_Entidade_ParametroById, postEntidade, putEntidade } from '../../api/api';
+  import { getObra_Entidade_ParametroById, postEntidade, getEntidades, putEntidade } from '../../api/api';
   import '../CSS/style.css'; 
 
   let id = null;
   let obraData = null;
   let loading = true;
   let error = null;
-  let selectedEntity = null;
   let activeMainTab = 'fornecedores';
   let activeSubTab = 'table';
+
+  let allEntidades = []; 
+  let filteredEntidades = [];
+  let searchTerm = '';
+  let showExistingEntities = false;
+  let selectedExistingEntity = null;
 
   let editingId = null;
   let showEditModal = false;
@@ -255,7 +260,6 @@
       
       closeEditModal();
 
-      alert('Entidade atualizada com sucesso!');
       location.reload();
       
     } catch (err) {
@@ -380,6 +384,78 @@
     activeSubTab = 'table';
   }
 
+  async function loadAllEntidades() {
+  try {
+    const response = await getEntidades();
+    if (response && Array.isArray(response)) {
+      allEntidades = response;
+      // Filtra apenas entidades do tipo correto
+      filteredEntidades = allEntidades.filter(entidade => 
+        entidade.tipo.toLowerCase() === getEntityType().toLowerCase()
+      );
+    } else {
+      throw new Error('Resposta da API não contém um array de entidades');
+    }
+  } catch (err) {
+    console.error('Erro ao carregar entidades:', err);
+    submitError = 'Erro ao carregar entidades existentes';
+    allEntidades = [];
+    filteredEntidades = [];
+  }
+}
+
+function filterEntidades() {
+  const term = searchTerm.toLowerCase();
+  
+  if (!term) {
+    // Se não há termo de busca, mostra todas do tipo correto
+    filteredEntidades = allEntidades.filter(entidade => 
+      entidade.tipo.toLowerCase() === getEntityType().toLowerCase()
+    );
+    return;
+  }
+  
+  // Filtra pelo tipo E pelo termo de busca
+  filteredEntidades = allEntidades.filter(entidade => 
+    entidade.tipo.toLowerCase() === getEntityType().toLowerCase() && (
+      entidade.fornecedor.toLowerCase().includes(term) ||
+      (entidade.especialidade && entidade.especialidade.toLowerCase().includes(term)) ||
+      (entidade.contribuinte && entidade.contribuinte.toString().includes(term))
+    )
+  );
+}
+  
+function selectExistingEntity(entidade) {
+  // Verifica se o tipo da entidade selecionada corresponde ao tipo atual
+  if (entidade.tipo.toLowerCase() !== getEntityType().toLowerCase()) {
+    submitError = `A entidade selecionada é do tipo ${entidade.tipo}, mas você está adicionando um ${getEntityType()}`;
+    return;
+  }
+
+  selectedExistingEntity = entidade;
+  newEntity = {
+    ...newEntity,
+    fornecedor: entidade.fornecedor,
+    contribuinte: entidade.contribuinte,
+    especialidade: entidade.especialidade,
+    observacoes: entidade.observacoes || '',
+    tipo: getEntityType()
+  };
+  
+  // Copiar parâmetros se existirem
+  if (entidade.parametrosFornecedor && activeMainTab === 'fornecedores') {
+    newEntity.parametrosFornecedor = {...entidade.parametrosFornecedor};
+  }
+  if (entidade.parametrosEmpreitada && activeMainTab === 'empreitadas') {
+    newEntity.parametrosEmpreitada = {...entidade.parametrosEmpreitada};
+  }
+  if (entidade.parametrosAluguer && activeMainTab === 'alugueres') {
+    newEntity.parametrosAluguer = {...entidade.parametrosAluguer};
+  }
+  
+  showExistingEntities = false;
+}
+
   function getEntitiesByType(type) {
     if (!obraData || !obraData.entidades) return [];
     
@@ -444,6 +520,7 @@
   function openAddModal() {
     resetForm();
     showAddModal = true;
+    loadAllEntidades();
   }
 
   function closeAddModal() {
@@ -529,7 +606,6 @@
       
       closeAddModal();
 
-      alert('Entidade adicionada com sucesso!');
       location.reload();
       
     } catch (err) {
@@ -538,6 +614,8 @@
       isSubmitting = false;
     }
   }
+
+
 </script>
 
 {#if loading}
@@ -693,7 +771,7 @@
                             Ver Detalhes
                           </button>
                           <button 
-                            class="btn-edit"
+                            class="edit-button"
                             on:click={() => openEditModal(emp)}
                           >
                             Editar
@@ -737,7 +815,7 @@
                           Ver Detalhes
                         </button>
                         <button 
-                          class="btn-edit"
+                          class="edit-button"
                           on:click={() => openEditModal(alug)}
                         >
                           Editar
@@ -1081,323 +1159,382 @@
   {/if}
 
   {#if showAddModal}
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <div class="modal-overlay" on:click={closeAddModal}>
-      <div class="modal-content" on:click|stopPropagation>
-        <div class="modal-header">
-          <h3>Adicionar {activeMainTab === 'fornecedores' ? 'Fornecedor' : activeMainTab === 'empreitadas' ? 'Empreitada' : 'Aluguer'}</h3>
-          <button class="btn-close" on:click={closeAddModal}>×</button>
-        </div>
-        
-        <div class="modal-body">
-          {#if submitError}
-            <div class="error-banner">
-              {submitError}
-            </div>
-          {/if}
-          
-          <form on:submit|preventDefault={submitNewEntity}>
-            <!-- Basic Information -->
-            <div class="form-section">
-              <h4>Informações Básicas</h4>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="fornecedor">Nome *</label>
-                  <input 
-                    type="text" 
-                    id="fornecedor" 
-                    bind:value={newEntity.fornecedor} 
-                    required 
-                    placeholder="Nome da entidade"
-                  />
-                </div>
-                <div class="form-group">
-                  <label for="contribuinte">Contribuinte</label>
-                  <input 
-                    type="number" 
-                    id="contribuinte" 
-                    bind:value={newEntity.contribuinte} 
-                    placeholder="Número de contribuinte"
-                  />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="especialidade">Especialidade *</label>
-                  <input 
-                    type="text" 
-                    id="especialidade" 
-                    bind:value={newEntity.especialidade} 
-                    required 
-                    placeholder="Especialidade da entidade"
-                  />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="observacoes">Observações</label>
-                  <textarea 
-                    id="observacoes" 
-                    bind:value={newEntity.observacoes} 
-                    placeholder="Observações adicionais"
-                    rows="3"
-                  ></textarea>
-                </div>
-              </div>
-            </div>
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <div class="modal-overlay" on:click={closeAddModal}>
+    <div class="modal-content" on:click|stopPropagation>
+      <div class="modal-header">
+        <h3>Adicionar {activeMainTab === 'fornecedores' ? 'Fornecedor' : activeMainTab === 'empreitadas' ? 'Empreitada' : 'Aluguer'}</h3>
+        <button class="btn-close" on:click={closeAddModal}>×</button>
+      </div>
+      
 
-            <!-- Parameters Section -->
-            <div class="form-section">
-              <h4>Parâmetros de Avaliação</h4>
+        {#if submitError}
+          <div class="error-banner">
+            {submitError}
+          </div>
+        {/if}
+        
+        <form on:submit|preventDefault={submitNewEntity}>
+            <h4>Selecionar Entidade Existente</h4>
+            <div class="search-existing">
+              <div class="search-box">
+                <input 
+                  type="text" 
+                  placeholder="Pesquisar entidades existentes..." 
+                  bind:value={searchTerm}
+                  on:input={filterEntidades}
+                />
+                <button 
+                  type="button" 
+                  class="btn-toggle-list"
+                  on:click={() => {
+                    showExistingEntities = !showExistingEntities;
+                    if (showExistingEntities) filterEntidades();
+                  }}
+                >
+                  {showExistingEntities ? '▲' : '▼'}
+                </button>
+              </div>
               
-              {#if activeMainTab === 'fornecedores'}
-                <div class="parameters-grid">
-                  <div class="form-group">
-                    <label for="qualidade_materiais">Qualidade Materiais (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="qualidade_materiais" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosFornecedor.qualidade_materiais}
-                    />
-                    <span class="range-value">{newEntity.parametrosFornecedor.qualidade_materiais}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="cumprimento_prazos">Cumprimento Prazos (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="cumprimento_prazos" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosFornecedor.cumprimento_prazos}
-                    />
-                    <span class="range-value">{newEntity.parametrosFornecedor.cumprimento_prazos}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="relacao_qualidadePreco">Relação Qualidade/Preço (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="relacao_qualidadePreco" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosFornecedor.relacao_qualidadePreco}
-                    />
-                    <span class="range-value">{newEntity.parametrosFornecedor.relacao_qualidadePreco}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="cumprimento_regras">Cumprimento Regras (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="cumprimento_regras" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosFornecedor.cumprimento_regras}
-                    />
-                    <span class="range-value">{newEntity.parametrosFornecedor.cumprimento_regras}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="gestao_reclamacoes">Gestão Reclamações (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="gestao_reclamacoes" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosFornecedor.gestao_reclamacoes}
-                    />
-                    <span class="range-value">{newEntity.parametrosFornecedor.gestao_reclamacoes}</span>
-                  </div>
-                </div>
-              {/if}
+              {#if showExistingEntities && filteredEntidades.length > 0}
+              <div class="existing-entities-list">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Contribuinte</th>
+                      <th>Especialidade</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each filteredEntidades as entidade (entidade.id)}
+                      <tr>
+                        <td>{entidade.fornecedor}</td>
+                        <td>{entidade.contribuinte || 'N/A'}</td>
+                        <td>{entidade.especialidade || 'N/A'}</td>
+                        <td>
+                          <button 
+                            type="button" 
+                            class="btn-select"
+                            on:click={() => selectExistingEntity(entidade)}
+                          >
+                            Selecionar
+                          </button>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            {:else}
+              <div class="no-results">
+                Nenhuma entidade do tipo "{getEntityType()}" encontrada
+                {#if searchTerm}
+                  <br>para o termo "{searchTerm}"
+                {/if}
+              </div>
+            {/if}
 
-              {#if activeMainTab === 'empreitadas'}
-                <div class="parameters-grid">
-                  <div class="form-group">
-                    <label for="resposta_solitacoes">Resposta Solicitações (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="resposta_solitacoes" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.resposta_solitacoes}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.resposta_solitacoes}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="respeito_normas_seguranca">Normas Segurança (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="respeito_normas_seguranca" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.respeito_normas_seguranca}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.respeito_normas_seguranca}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="respeito_normas_ambientais">Normas Ambientais (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="respeito_normas_ambientais" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.respeito_normas_ambientais}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.respeito_normas_ambientais}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="comformidade_servico">Conformidade Serviço (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="comformidade_servico" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.comformidade_servico}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.comformidade_servico}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="cumprimento_prazos_emp">Cumprimento Prazos (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="cumprimento_prazos_emp" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.cumprimento_prazos}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.cumprimento_prazos}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="capacidade_negocial">Capacidade Negocial (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="capacidade_negocial" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.capacidade_negocial}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.capacidade_negocial}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="competencia_execucao_correcoes">Competência Execução (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="competencia_execucao_correcoes" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.competencia_execucao_correcoes}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.competencia_execucao_correcoes}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="entrega_documentacao">Entrega Documentação (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="entrega_documentacao" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosEmpreitada.entrega_documentacao}
-                    />
-                    <span class="range-value">{newEntity.parametrosEmpreitada.entrega_documentacao}</span>
-                  </div>
-                </div>
-              {/if}
 
-              {#if activeMainTab === 'alugueres'}
-                <div class="parameters-grid">
-                  <div class="form-group">
-                    <label for="capacidade_resposta">Capacidade Resposta (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="capacidade_resposta" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosAluguer.capacidade_resposta}
-                    />
-                    <span class="range-value">{newEntity.parametrosAluguer.capacidade_resposta}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="qualidade_equipamento">Qualidade Equipamento (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="qualidade_equipamento" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosAluguer.qualidade_equipamento}
-                    />
-                    <span class="range-value">{newEntity.parametrosAluguer.qualidade_equipamento}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="cumprimento_prazo">Cumprimento Prazo (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="cumprimento_prazo" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosAluguer.cumprimento_prazo}
-                    />
-                    <span class="range-value">{newEntity.parametrosAluguer.cumprimento_prazo}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="desempenho_ambiental">Desempenho Ambiental (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="desempenho_ambiental" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosAluguer.desempenho_ambiental}
-                    />
-                    <span class="range-value">{newEntity.parametrosAluguer.desempenho_ambiental}</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="manuntencao_assistenciaTecnica">Manutenção/Assist. Técnica (1-5)</label>
-                    <input 
-                      type="range" 
-                      id="manuntencao_assistenciaTecnica" 
-                      min="1" 
-                      max="5" 
-                      bind:value={newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}
-                    />
-                    <span class="range-value">{newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}</span>
-                  </div>
-                </div>
-              {/if}
+          <div class="form-section">
+            <h4>Informações Básicas</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="fornecedor">Nome *</label>
+                <input 
+                  type="text" 
+                  id="fornecedor" 
+                  bind:value={newEntity.fornecedor} 
+                  required 
+                  placeholder="Nome da entidade"
+                />
+              </div>
+              <div class="form-group">
+                <label for="contribuinte">Contribuinte</label>
+                <input 
+                  type="number" 
+                  id="contribuinte" 
+                  bind:value={newEntity.contribuinte} 
+                  placeholder="Número de contribuinte"
+                />
+              </div>
             </div>
-          </form>
-        </div>
-        
-        <div class="modal-footer">
-          <button type="button" class="btn-cancel" on:click={closeAddModal}>
-            Cancelar
-          </button>
-          <button 
-            type="button" 
-            class="btn-submit" 
-            on:click={submitNewEntity}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'A adicionar...' : 'Adicionar'}
-          </button>
-        </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="especialidade">Especialidade *</label>
+                <input 
+                  type="text" 
+                  id="especialidade" 
+                  bind:value={newEntity.especialidade} 
+                  required 
+                  placeholder="Especialidade da entidade"
+                />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="observacoes">Observações</label>
+                <textarea 
+                  id="observacoes" 
+                  bind:value={newEntity.observacoes} 
+                  placeholder="Observações adicionais"
+                  rows="3"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>Parâmetros de Avaliação</h4>
+            
+            {#if activeMainTab === 'fornecedores'}
+              <div class="parameters-grid">
+                <div class="form-group">
+                  <label for="qualidade_materiais">Qualidade Materiais (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="qualidade_materiais" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosFornecedor.qualidade_materiais}
+                  />
+                  <span class="range-value">{newEntity.parametrosFornecedor.qualidade_materiais}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="cumprimento_prazos">Cumprimento Prazos (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="cumprimento_prazos" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosFornecedor.cumprimento_prazos}
+                  />
+                  <span class="range-value">{newEntity.parametrosFornecedor.cumprimento_prazos}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="relacao_qualidadePreco">Relação Qualidade/Preço (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="relacao_qualidadePreco" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosFornecedor.relacao_qualidadePreco}
+                  />
+                  <span class="range-value">{newEntity.parametrosFornecedor.relacao_qualidadePreco}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="cumprimento_regras">Cumprimento Regras (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="cumprimento_regras" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosFornecedor.cumprimento_regras}
+                  />
+                  <span class="range-value">{newEntity.parametrosFornecedor.cumprimento_regras}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="gestao_reclamacoes">Gestão Reclamações (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="gestao_reclamacoes" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosFornecedor.gestao_reclamacoes}
+                  />
+                  <span class="range-value">{newEntity.parametrosFornecedor.gestao_reclamacoes}</span>
+                </div>
+              </div>
+            {/if}
+
+            {#if activeMainTab === 'empreitadas'}
+              <div class="parameters-grid">
+                <div class="form-group">
+                  <label for="resposta_solitacoes">Resposta Solicitações (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="resposta_solitacoes" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.resposta_solitacoes}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.resposta_solitacoes}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="respeito_normas_seguranca">Normas Segurança (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="respeito_normas_seguranca" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.respeito_normas_seguranca}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.respeito_normas_seguranca}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="respeito_normas_ambientais">Normas Ambientais (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="respeito_normas_ambientais" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.respeito_normas_ambientais}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.respeito_normas_ambientais}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="comformidade_servico">Conformidade Serviço (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="comformidade_servico" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.comformidade_servico}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.comformidade_servico}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="cumprimento_prazos_emp">Cumprimento Prazos (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="cumprimento_prazos_emp" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.cumprimento_prazos}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.cumprimento_prazos}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="capacidade_negocial">Capacidade Negocial (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="capacidade_negocial" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.capacidade_negocial}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.capacidade_negocial}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="competencia_execucao_correcoes">Competência Execução (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="competencia_execucao_correcoes" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.competencia_execucao_correcoes}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.competencia_execucao_correcoes}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="entrega_documentacao">Entrega Documentação (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="entrega_documentacao" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosEmpreitada.entrega_documentacao}
+                  />
+                  <span class="range-value">{newEntity.parametrosEmpreitada.entrega_documentacao}</span>
+                </div>
+              </div>
+            {/if}
+
+            {#if activeMainTab === 'alugueres'}
+              <div class="parameters-grid">
+                <div class="form-group">
+                  <label for="capacidade_resposta">Capacidade Resposta (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="capacidade_resposta" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosAluguer.capacidade_resposta}
+                  />
+                  <span class="range-value">{newEntity.parametrosAluguer.capacidade_resposta}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="qualidade_equipamento">Qualidade Equipamento (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="qualidade_equipamento" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosAluguer.qualidade_equipamento}
+                  />
+                  <span class="range-value">{newEntity.parametrosAluguer.qualidade_equipamento}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="cumprimento_prazo">Cumprimento Prazo (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="cumprimento_prazo" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosAluguer.cumprimento_prazo}
+                  />
+                  <span class="range-value">{newEntity.parametrosAluguer.cumprimento_prazo}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="desempenho_ambiental">Desempenho Ambiental (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="desempenho_ambiental" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosAluguer.desempenho_ambiental}
+                  />
+                  <span class="range-value">{newEntity.parametrosAluguer.desempenho_ambiental}</span>
+                </div>
+                
+                <div class="form-group">
+                  <label for="manuntencao_assistenciaTecnica">Manutenção/Assist. Técnica (1-5)</label>
+                  <input 
+                    type="range" 
+                    id="manuntencao_assistenciaTecnica" 
+                    min="1" 
+                    max="5" 
+                    bind:value={newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}
+                  />
+                  <span class="range-value">{newEntity.parametrosAluguer.manuntencao_assistenciaTecnica}</span>
+                </div>
+              </div>
+            {/if}
+          </div>
+        </form>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" on:click={closeAddModal}>
+          Cancelar
+        </button>
+        <button 
+          type="button" 
+          class="btn-submit" 
+          on:click={submitNewEntity}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'A adicionar...' : 'Adicionar'}
+        </button>
       </div>
     </div>
-  {/if}
+  </div>
+{/if}
 {:else}
   <div class="error-message">
     <h2>Obra não encontrada</h2>
@@ -1405,3 +1542,77 @@
     <button class="btn-back" on:click={voltar}>← Voltar à lista</button>
   </div>
 {/if}
+
+<style>
+  .search-existing {
+    margin-bottom: 20px;
+  }
+  
+  .search-box {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .search-box input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  .btn-toggle-list {
+    padding: 0 15px;
+    background: #eee;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .existing-entities-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 15px;
+  }
+  
+  .existing-entities-list table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .existing-entities-list th, 
+  .existing-entities-list td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+  }
+  
+  .existing-entities-list th {
+    background: #f5f5f5;
+    position: sticky;
+    top: 0;
+  }
+  
+  .btn-select {
+    padding: 4px 8px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  
+  .btn-select:hover {
+    background: #45a049;
+  }
+  
+  .no-results {
+    padding: 10px;
+    text-align: center;
+    color: #666;
+    border: 1px dashed #ddd;
+    border-radius: 4px;
+  }
+</style>
