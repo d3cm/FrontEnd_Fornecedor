@@ -1185,58 +1185,49 @@ function selectExistingEntity(entidade) {
                   bind:value={searchTerm}
                   on:input={filterEntidades}
                 />
-                <button 
-                  type="button" 
-                  class="btn-toggle-list"
-                  on:click={() => {
-                    showExistingEntities = !showExistingEntities;
-                    if (showExistingEntities) filterEntidades();
-                  }}
-                >
-                  {showExistingEntities ? '▲' : '▼'}
-                </button>
               </div>
               
-              {#if showExistingEntities && filteredEntidades.length > 0}
+              <!-- Tabela sempre visível -->
               <div class="existing-entities-list">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>Contribuinte</th>
-                      <th>Especialidade</th>
-                      <th>Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each filteredEntidades as entidade (entidade.id)}
+                {#if filteredEntidades.length > 0}
+                  <table>
+                    <thead>
                       <tr>
-                        <td>{entidade.fornecedor}</td>
-                        <td>{entidade.contribuinte || 'N/A'}</td>
-                        <td>{entidade.especialidade || 'N/A'}</td>
-                        <td>
-                          <button 
-                            type="button" 
-                            class="btn-select"
-                            on:click={() => selectExistingEntity(entidade)}
-                          >
-                            Selecionar
-                          </button>
-                        </td>
+                        <th>Nome</th>
+                        <th>Contribuinte</th>
+                        <th>Especialidade</th>
+                        <th>Ação</th>
                       </tr>
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {:else}
-              <div class="no-results">
-                Nenhuma entidade do tipo "{getEntityType()}" encontrada
-                {#if searchTerm}
-                  <br>para o termo "{searchTerm}"
+                    </thead>
+                    <tbody>
+                      {#each filteredEntidades as entidade (entidade.id)}
+                        <tr>
+                          <td>{entidade.fornecedor}</td>
+                          <td>{entidade.contribuinte || 'N/A'}</td>
+                          <td>{entidade.especialidade || 'N/A'}</td>
+                          <td>
+                            <button 
+                              type="button" 
+                              class="btn-select"
+                              on:click={() => selectExistingEntity(entidade)}
+                            >
+                              Selecionar
+                            </button>
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                {:else}
+                  <div class="no-results">
+                    Nenhuma entidade do tipo "{getEntityType()}" encontrada
+                    {#if searchTerm}
+                      <br>para o termo "{searchTerm}"
+                    {/if}
+                  </div>
                 {/if}
               </div>
-            {/if}
-
+            </div>
 
           <div class="form-section">
             <h4>Informações Básicas</h4>
