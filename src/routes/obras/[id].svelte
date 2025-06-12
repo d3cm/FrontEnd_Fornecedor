@@ -51,37 +51,48 @@
   }
 
   onMount(async () => {
-    try {
-      id = getIdFromUrl();
+  try {
+    id = getIdFromUrl();
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab');
+    // Lê a aba da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
     
-      if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
-        activeMainTab = tabParam;
-      }
-      
-      if (!id) {
-        throw new Error('ID da obra não encontrado na URL');
-      }
-      
-      obraData = await getObra_Entidade_ParametroById(id);
-      
-      if (!obraData || !obraData.obra) {
-        throw new Error('Obra não encontrada');
-      }
+    if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
+      activeMainTab = tabParam;
+    }
+    
+    if (!id) {
+      throw new Error('ID da obra não encontrado na URL');
+    }
+    
+    obraData = await getObra_Entidade_ParametroById(id);
+    
+    if (!obraData || !obraData.obra) {
+      throw new Error('Obra não encontrada');
+    }
 
-      const savedTab = localStorage.getItem('lastActiveTab');
-    if (savedTab && ['fornecedores', 'empreitadas', 'alugueres'].includes(savedTab)) {
-      activeMainTab = savedTab;
-    }
-      
-      loading = false;
-    } catch (err) {
-      error = err.message;
-      loading = false;
-    }
-  });
+    loading = false;
+  } catch (err) {
+    error = err.message;
+    loading = false;
+  }
+});
+
+onMount(() => {
+  window.addEventListener('popstate', handlePopState);
+  return () => window.removeEventListener('popstate', handlePopState);
+});
+
+function handlePopState() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get('tab');
+  
+  if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
+    activeMainTab = tabParam;
+    loadTabData();
+  }
+}
 
   function formatDate(dateString) {
     if (!dateString) return '';
@@ -225,71 +236,71 @@
 }
 
   async function submitEditEntity() {
-  isSubmitting = true;
-  submitError = null;
-  
-  try {
-    if (!formData.fornecedor.trim()) {
-      throw new Error('Nome do fornecedor é obrigatório');
-    }
+    isSubmitting = true;
+    submitError = null;
     
-    if (!formData.especialidade.trim()) {
-      throw new Error('Especialidade é obrigatória');
-    }
-    
-    const entityData = {
-      tipo: formData.tipo,
-      fornecedor: formData.fornecedor,
-      contribuinte: formData.contribuinte,
-      especialidade: formData.especialidade,
-      observacoes: formData.observacoes,
-      id_obra: formData.id_obra
-    };
-    
-    let paramsData = {};
-    switch(formData.tipo) {
-      case 'aluguer':
-        paramsData = {
-          capacidade_resposta: formData.capacidade_resposta,
-          qualidade_equipamento: formData.qualidade_equipamento,
-          cumprimento_prazo: formData.cumprimento_prazo,
-          desempenho_ambiental: formData.desempenho_ambiental,
-          manuntencao_assistenciaTecnica: formData.manuntencao_assistenciaTecnica
-        };
-        break;
-      case 'empreitada':
-        paramsData = {
-          resposta_solitacoes: formData.resposta_solitacoes,
-          respeito_normas_seguranca: formData.respeito_normas_seguranca,
-          respeito_normas_ambientais: formData.respeito_normas_ambientais,
-          comformidade_servico: formData.comformidade_servico,
-          cumprimento_prazos: formData.cumprimento_prazos,
-          capacidade_negocial: formData.capacidade_negocial,
-          competencia_execucao_correcoes: formData.competencia_execucao_correcoes,
-          entrega_documentacao: formData.entrega_documentacao
-        };
-        break;
-      case 'fornecedor':
-        paramsData = {
-          qualidade_materiais: formData.qualidade_materiais,
-          cumprimento_prazos: formData.cumprimento_prazos,
-          relacao_qualidadePreco: formData.relacao_qualidadePreco,
-          cumprimento_regras: formData.cumprimento_regras,
-          gestao_reclamacoes: formData.gestao_reclamacoes
-        };
-        break;
-    }
-    
-    const dataToSend = {
-      ...entityData,
-      parametrosFornecedor: formData.tipo === 'fornecedor' ? paramsData : null,
-      parametrosEmpreitada: formData.tipo === 'empreitada' ? paramsData : null,
-      parametrosAluguer: formData.tipo === 'aluguer' ? paramsData : null
-    };
-    
-    await putEntidade(editingId, dataToSend);
-    
-    // Atualiza os dados sem recarregar a página
+    try {
+      if (!formData.fornecedor.trim()) {
+        throw new Error('Nome do fornecedor é obrigatório');
+      }
+      
+      if (!formData.especialidade.trim()) {
+        throw new Error('Especialidade é obrigatória');
+      }
+      
+      const entityData = {
+        tipo: formData.tipo,
+        fornecedor: formData.fornecedor,
+        contribuinte: formData.contribuinte,
+        especialidade: formData.especialidade,
+        observacoes: formData.observacoes,
+        id_obra: formData.id_obra
+      };
+      
+      let paramsData = {};
+      switch(formData.tipo) {
+        case 'aluguer':
+          paramsData = {
+            capacidade_resposta: formData.capacidade_resposta,
+            qualidade_equipamento: formData.qualidade_equipamento,
+            cumprimento_prazo: formData.cumprimento_prazo,
+            desempenho_ambiental: formData.desempenho_ambiental,
+            manuntencao_assistenciaTecnica: formData.manuntencao_assistenciaTecnica
+          };
+          break;
+        case 'empreitada':
+          paramsData = {
+            resposta_solitacoes: formData.resposta_solitacoes,
+            respeito_normas_seguranca: formData.respeito_normas_seguranca,
+            respeito_normas_ambientais: formData.respeito_normas_ambientais,
+            comformidade_servico: formData.comformidade_servico,
+            cumprimento_prazos: formData.cumprimento_prazos,
+            capacidade_negocial: formData.capacidade_negocial,
+            competencia_execucao_correcoes: formData.competencia_execucao_correcoes,
+            entrega_documentacao: formData.entrega_documentacao
+          };
+          break;
+        case 'fornecedor':
+          paramsData = {
+            qualidade_materiais: formData.qualidade_materiais,
+            cumprimento_prazos: formData.cumprimento_prazos,
+            relacao_qualidadePreco: formData.relacao_qualidadePreco,
+            cumprimento_regras: formData.cumprimento_regras,
+            gestao_reclamacoes: formData.gestao_reclamacoes
+          };
+          break;
+      }
+      
+      const dataToSend = {
+        ...entityData,
+        parametrosFornecedor: formData.tipo === 'fornecedor' ? paramsData : null,
+        parametrosEmpreitada: formData.tipo === 'empreitada' ? paramsData : null,
+        parametrosAluguer: formData.tipo === 'aluguer' ? paramsData : null
+      };
+      
+      await putEntidade(editingId, dataToSend);
+      
+      
     const url = new URL(window.location.href);
     url.searchParams.set('tab', activeMainTab);
     window.location.href = url.toString();
@@ -506,6 +517,16 @@ function selectExistingEntity(entidade) {
   showExistingEntities = false;
 }
 
+onMount(() => {
+  window.addEventListener('popstate', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
+      activeMainTab = tabParam;
+    }
+  });
+});
+
   function getEntitiesByType(type) {
     if (!obraData || !obraData.entidades) return [];
     
@@ -557,6 +578,14 @@ function selectExistingEntity(entidade) {
     return entities;
   }
 
+  async function loadTabData() {
+  try {
+    obraData = await getObra_Entidade_ParametroById(id);
+  } catch (err) {
+    console.error('Erro ao carregar dados da aba:', err);
+  }
+}
+
   function getTotalEntidades() {
     return obraData?.entidades?.length || 0;
   }
@@ -565,11 +594,14 @@ function selectExistingEntity(entidade) {
   activeMainTab = tabName;
   activeSubTab = 'table';
   selectedEntity = null;
-  localStorage.removeItem('lastActiveTab');
 
   const url = new URL(window.location.href);
   url.searchParams.set('tab', tabName);
   window.history.pushState({}, '', url);
+  
+
+  activeMainTab = tabName;
+  activeSubTab = 'table';
 }
 
   function openAddModal() {
@@ -643,32 +675,34 @@ function selectExistingEntity(entidade) {
   }
 
   async function submitNewEntity() {
-    isSubmitting = true;
-    submitError = null;
-    
-    try {
-      if (!newEntity.fornecedor.trim()) {
-        throw new Error('Nome do fornecedor é obrigatório');
-      }
-      
-      if (!newEntity.especialidade.trim()) {
-        throw new Error('Especialidade é obrigatória');
-      }
-      
-      const result = await postEntidade(newEntity);
-      
-      obraData = await getObra_Entidade_ParametroById(id);
-      
-      closeAddModal();
-
-      location.reload();
-      
-    } catch (err) {
-      submitError = err.message || 'Erro ao adicionar entidade';
-    } finally {
-      isSubmitting = false;
+  isSubmitting = true;
+  submitError = null;
+  
+  try {
+    if (!newEntity.fornecedor.trim()) {
+      throw new Error('Nome do fornecedor é obrigatório');
     }
+    
+    if (!newEntity.especialidade.trim()) {
+      throw new Error('Especialidade é obrigatória');
+    }
+    
+    await postEntidade(newEntity);
+    
+    // Fecha o modal
+    closeAddModal();
+    
+    // Recarrega a página mantendo a aba ativa
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', activeMainTab);
+    window.location.href = url.toString();
+    
+  } catch (err) {
+    submitError = err.message || 'Erro ao adicionar entidade';
+  } finally {
+    isSubmitting = false;
   }
+}
 
 
 </script>
