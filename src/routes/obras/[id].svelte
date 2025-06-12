@@ -9,12 +9,12 @@
   let error = null;
   let activeMainTab = 'fornecedores';
   let activeSubTab = 'table';
+  let selectedExistingEntity = null;
+  let showExistingEntities = false;
 
   let allEntidades = []; 
   let filteredEntidades = [];
   let searchTerm = '';
-  let showExistingEntities = false;
-  let selectedExistingEntity = null;
 
   let editingId = null;
   let showEditModal = false;
@@ -53,6 +53,13 @@
   onMount(async () => {
     try {
       id = getIdFromUrl();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+    
+      if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
+        activeMainTab = tabParam;
+      }
       
       if (!id) {
         throw new Error('ID da obra não encontrado na URL');
@@ -63,6 +70,11 @@
       if (!obraData || !obraData.obra) {
         throw new Error('Obra não encontrada');
       }
+
+      const savedTab = localStorage.getItem('lastActiveTab');
+    if (savedTab && ['fornecedores', 'empreitadas', 'alugueres'].includes(savedTab)) {
+      activeMainTab = savedTab;
+    }
       
       loading = false;
     } catch (err) {
@@ -80,6 +92,26 @@
   function goBack() {
     window.location.href = 'http://localhost:1337';
   }
+
+  function calculateAverageScore(entities, type) {
+  const validEntities = entities.filter(ent => {
+    const status = getStatusForEntity(ent);
+    return status.class !== 'eliminated';
+  });
+
+  if (validEntities.length === 0) return 0;
+
+  const total = validEntities.reduce((sum, ent) => {
+    switch(type) {
+      case 'fornecedor': return sum + calculateFornecedorScore(ent);
+      case 'empreitada': return sum + calculateEmpreitadaScore(ent);
+      case 'aluguer': return sum + calculateAluguerScore(ent);
+      default: return sum;
+    }
+  }, 0);
+
+  return (total / validEntities.length).toFixed(1);
+}
 
   function calculateFornecedorScore(fornecedor) {
     if (!fornecedor.parametrosFornecedor) return 0;
@@ -185,89 +217,89 @@
   }
 
   function closeEditModal() {
-    showEditModal = false;
-    formData = {};
-    editingId = null;
-    submitError = null;
-  }
+  showEditModal = false;
+  formData = {};
+  editingId = null;
+  submitError = null;
+  localStorage.removeItem('lastActiveTab');
+}
 
   async function submitEditEntity() {
-    isSubmitting = true;
-    submitError = null;
-    
-    try {
-      if (!formData.fornecedor.trim()) {
-        throw new Error('Nome do fornecedor é obrigatório');
-      }
-      
-      if (!formData.especialidade.trim()) {
-        throw new Error('Especialidade é obrigatória');
-      }
-      
-      const entityData = {
-        tipo: formData.tipo,
-        fornecedor: formData.fornecedor,
-        contribuinte: formData.contribuinte,
-        especialidade: formData.especialidade,
-        observacoes: formData.observacoes,
-        id_obra: formData.id_obra
-      };
-      
-      let paramsData = {};
-      switch(formData.tipo) {
-        case 'aluguer':
-          paramsData = {
-            capacidade_resposta: formData.capacidade_resposta,
-            qualidade_equipamento: formData.qualidade_equipamento,
-            cumprimento_prazo: formData.cumprimento_prazo,
-            desempenho_ambiental: formData.desempenho_ambiental,
-            manuntencao_assistenciaTecnica: formData.manuntencao_assistenciaTecnica
-          };
-          break;
-        case 'empreitada':
-          paramsData = {
-            resposta_solitacoes: formData.resposta_solitacoes,
-            respeito_normas_seguranca: formData.respeito_normas_seguranca,
-            respeito_normas_ambientais: formData.respeito_normas_ambientais,
-            comformidade_servico: formData.comformidade_servico,
-            cumprimento_prazos: formData.cumprimento_prazos,
-            capacidade_negocial: formData.capacidade_negocial,
-            competencia_execucao_correcoes: formData.competencia_execucao_correcoes,
-            entrega_documentacao: formData.entrega_documentacao
-          };
-          break;
-        case 'fornecedor':
-          paramsData = {
-            qualidade_materiais: formData.qualidade_materiais,
-            cumprimento_prazos: formData.cumprimento_prazos,
-            relacao_qualidadePreco: formData.relacao_qualidadePreco,
-            cumprimento_regras: formData.cumprimento_regras,
-            gestao_reclamacoes: formData.gestao_reclamacoes
-          };
-          break;
-      }
-      
-      const dataToSend = {
-        ...entityData,
-        parametrosFornecedor: formData.tipo === 'fornecedor' ? paramsData : null,
-        parametrosEmpreitada: formData.tipo === 'empreitada' ? paramsData : null,
-        parametrosAluguer: formData.tipo === 'aluguer' ? paramsData : null
-      };
-      
-      await putEntidade(editingId, dataToSend);
-      
-      obraData = await getObra_Entidade_ParametroById(id);
-      
-      closeEditModal();
-
-      location.reload();
-      
-    } catch (err) {
-      submitError = err.message || 'Erro ao atualizar entidade';
-    } finally {
-      isSubmitting = false;
+  isSubmitting = true;
+  submitError = null;
+  
+  try {
+    if (!formData.fornecedor.trim()) {
+      throw new Error('Nome do fornecedor é obrigatório');
     }
+    
+    if (!formData.especialidade.trim()) {
+      throw new Error('Especialidade é obrigatória');
+    }
+    
+    const entityData = {
+      tipo: formData.tipo,
+      fornecedor: formData.fornecedor,
+      contribuinte: formData.contribuinte,
+      especialidade: formData.especialidade,
+      observacoes: formData.observacoes,
+      id_obra: formData.id_obra
+    };
+    
+    let paramsData = {};
+    switch(formData.tipo) {
+      case 'aluguer':
+        paramsData = {
+          capacidade_resposta: formData.capacidade_resposta,
+          qualidade_equipamento: formData.qualidade_equipamento,
+          cumprimento_prazo: formData.cumprimento_prazo,
+          desempenho_ambiental: formData.desempenho_ambiental,
+          manuntencao_assistenciaTecnica: formData.manuntencao_assistenciaTecnica
+        };
+        break;
+      case 'empreitada':
+        paramsData = {
+          resposta_solitacoes: formData.resposta_solitacoes,
+          respeito_normas_seguranca: formData.respeito_normas_seguranca,
+          respeito_normas_ambientais: formData.respeito_normas_ambientais,
+          comformidade_servico: formData.comformidade_servico,
+          cumprimento_prazos: formData.cumprimento_prazos,
+          capacidade_negocial: formData.capacidade_negocial,
+          competencia_execucao_correcoes: formData.competencia_execucao_correcoes,
+          entrega_documentacao: formData.entrega_documentacao
+        };
+        break;
+      case 'fornecedor':
+        paramsData = {
+          qualidade_materiais: formData.qualidade_materiais,
+          cumprimento_prazos: formData.cumprimento_prazos,
+          relacao_qualidadePreco: formData.relacao_qualidadePreco,
+          cumprimento_regras: formData.cumprimento_regras,
+          gestao_reclamacoes: formData.gestao_reclamacoes
+        };
+        break;
+    }
+    
+    const dataToSend = {
+      ...entityData,
+      parametrosFornecedor: formData.tipo === 'fornecedor' ? paramsData : null,
+      parametrosEmpreitada: formData.tipo === 'empreitada' ? paramsData : null,
+      parametrosAluguer: formData.tipo === 'aluguer' ? paramsData : null
+    };
+    
+    await putEntidade(editingId, dataToSend);
+    
+    // Atualiza os dados sem recarregar a página
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', activeMainTab);
+    window.location.href = url.toString();
+    
+  } catch (err) {
+    submitError = err.message || 'Erro ao atualizar entidade';
+  } finally {
+    isSubmitting = false;
   }
+}
 
   function getStatusFornecedor(fornecedor) {
     const score = calculateFornecedorScore(fornecedor);
@@ -374,16 +406,6 @@
     };
   }
 
-  function selectEntity(entity) {
-    selectedEntity = entity;
-    activeSubTab = 'details';
-  }
-
-  function closeDetails() {
-    selectedEntity = null;
-    activeSubTab = 'table';
-  }
-
   async function loadAllEntidades() {
   try {
     const response = await getEntidades();
@@ -426,11 +448,39 @@ function filterEntidades() {
 }
   
 function selectExistingEntity(entidade) {
-  // Verifica se o tipo da entidade selecionada corresponde ao tipo atual
+  // Verifica se a entidade está eliminada
+  const status = getStatusForEntity(entidade);
+  if (status.class === 'eliminated') {
+    submitError = 'Esta entidade está eliminada e não pode ser adicionada a outra obra';
+    return;
+  }
   if (entidade.tipo.toLowerCase() !== getEntityType().toLowerCase()) {
     submitError = `A entidade selecionada é do tipo ${entidade.tipo}, mas você está adicionando um ${getEntityType()}`;
     return;
   }
+
+  selectedExistingEntity = entidade;
+  newEntity = {
+    ...newEntity,
+    fornecedor: entidade.fornecedor,
+    contribuinte: entidade.contribuinte,
+    especialidade: entidade.especialidade,
+    observacoes: entidade.observacoes || '',
+    tipo: getEntityType()
+  };
+
+  function getStatusForEntity(entidade) {
+  switch(entidade.tipo.toLowerCase()) {
+    case 'fornecedor':
+      return getStatusFornecedor(entidade);
+    case 'empreitada':
+      return getStatusEmpreitada(entidade);
+    case 'aluguer':
+      return getStatusAluguer(entidade);
+    default:
+      return { class: 'undefined', text: 'Indefinido' };
+  }
+} 
 
   selectedExistingEntity = entidade;
   newEntity = {
@@ -512,10 +562,15 @@ function selectExistingEntity(entidade) {
   }
 
   function switchMainTab(tabName) {
-    activeMainTab = tabName;
-    activeSubTab = 'table';
-    selectedEntity = null;
-  }
+  activeMainTab = tabName;
+  activeSubTab = 'table';
+  selectedEntity = null;
+  localStorage.removeItem('lastActiveTab');
+
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', tabName);
+  window.history.pushState({}, '', url);
+}
 
   function openAddModal() {
     resetForm();
@@ -697,91 +752,103 @@ function selectExistingEntity(entidade) {
           <div class="table-container">
             
             {#if activeMainTab === 'fornecedores'}
-              <table class="entidades-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Fornecedor</th>
-                    <th>Contribuinte</th>
-                    <th>Especialidade</th>
-                    <th>Pontuação</th>
-                    <th>Status</th>
-                    <th>Ações</th>
+            <table class="entidades-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Fornecedor</th>
+                  <th>Contribuinte</th>
+                  <th>Especialidade</th>
+                  <th>Pontuação</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each getCurrentEntities() as forn (forn.id)}
+                  <tr class="table-row {getStatusFornecedor(forn).class === 'eliminated' ? 'eliminated' : ''}">
+                    <td>{forn.id}</td>
+                    <td class="fornecedor-name">{forn.fornecedor}</td>
+                    <td>{forn.contribuinte}</td>
+                    <td>{forn.especialidade}</td>
+                    <td class="rating">{calculateFornecedorScore(forn)}</td>
+                    <td class="status-{getStatusFornecedor(forn).class}">
+                      {getStatusFornecedor(forn).text}
+                      {#if getStatusFornecedor(forn).class === 'eliminated'}
+                        <span class="status-tooltip">🚫</span>
+                      {/if}
+                    </td>
+                    <td class="actions-cell">
+                      <div class="actions-buttons">
+                        <button 
+                          class="btn-details" 
+                          on:click={() => window.location.href = `/obras/entidade/${forn.id}`}
+                        >
+                          Ver Detalhes
+                        </button>
+                        <button 
+                          class="edit-button"
+                          on:click={() => openEditModal(forn)}
+                          disabled={getStatusFornecedor(forn).class === 'eliminated'}
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {#each getCurrentEntities() as forn (forn.id)}
-                    <tr class="table-row">
-                      <td>{forn.id}</td>
-                      <td class="fornecedor-name">{forn.fornecedor}</td>
-                      <td>{forn.contribuinte}</td>
-                      <td>{forn.especialidade}</td>
-                      <td class="rating">{calculateFornecedorScore(forn)}</td>
-                      <td class="status-{getStatusFornecedor(forn).class}">{getStatusFornecedor(forn).text}</td>
-                      <td class="actions-cell">
-                        <div class="actions-buttons">
-                          <button 
-                            class="btn-details" 
-                            on:click={() => window.open(`/obras/entidade/${forn.id}`, "_self")}
-                          >
-                            Ver Detalhes
-                          </button>
-                          <button 
-                            class="edit-button"
-                            on:click={() => openEditModal(forn)}
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
+                {/each}
+              </tbody>
+            </table>
             {/if}
       
             {#if activeMainTab === 'empreitadas'}
-              <table class="entidades-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>Contribuinte</th>
-                    <th>Especialidade</th>
-                    <th>Pontuação</th>
-                    <th>Status</th>
-                    <th>Ações</th>
+            <table class="entidades-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nome</th>
+                  <th>Contribuinte</th>
+                  <th>Especialidade</th>
+                  <th>Pontuação</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each getCurrentEntities() as emp (emp.id)}
+                  <tr class="table-row {getStatusEmpreitada(emp).class === 'eliminated' ? 'eliminated' : ''}">
+                    <td>{emp.id}</td>
+                    <td class="fornecedor-name">{emp.fornecedor}</td>
+                    <td>{emp.contribuinte}</td>
+                    <td>{emp.especialidade}</td>
+                    <td class="rating">{calculateEmpreitadaScore(emp)}</td>
+                    <td class="status-{getStatusEmpreitada(emp).class}">
+                      {getStatusEmpreitada(emp).text}
+                      {#if getStatusEmpreitada(emp).class === 'eliminated'}
+                        <span class="status-tooltip">🚫</span>
+                      {/if}
+                    </td>
+                    <td class="actions-cell">
+                      <div class="actions-buttons">
+                        <button 
+                          class="btn-details" 
+                          on:click={() => window.location.href = `/obras/entidade/${emp.id}`}
+                        >
+                          Ver Detalhes
+                        </button>
+                        <button 
+                          class="edit-button"
+                          on:click={() => openEditModal(emp)}
+                          disabled={getStatusEmpreitada(emp).class === 'eliminated'}
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {#each getCurrentEntities() as emp (emp.id)}
-                    <tr class="table-row">
-                      <td>{emp.id}</td>
-                      <td class="fornecedor-name">{emp.fornecedor}</td>
-                      <td>{emp.contribuinte}</td>
-                      <td>{emp.especialidade}</td>
-                      <td class="rating">{calculateEmpreitadaScore(emp)}</td>
-                      <td class="status-{getStatusEmpreitada(emp).class}">{getStatusEmpreitada(emp).text}</td>
-                      <td class="actions-cell">
-                        <div class="actions-buttons">
-                          <button 
-                            class="btn-details" 
-                            on:click={() => window.open(`/obras/entidade/${emp.id}`, "_self")}
-                          >
-                            Ver Detalhes
-                          </button>
-                          <button 
-                            class="edit-button"
-                            on:click={() => openEditModal(emp)}
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
+                {/each}
+              </tbody>
+            </table>
             {/if}
       
             {#if activeMainTab === 'alugueres'}
@@ -799,24 +866,30 @@ function selectExistingEntity(entidade) {
               </thead>
               <tbody>
                 {#each getCurrentEntities() as alug (alug.id)}
-                  <tr class="table-row">
+                  <tr class="table-row {getStatusAluguer(alug).class === 'eliminated' ? 'eliminated' : ''}">
                     <td>{alug.id}</td>
                     <td class="fornecedor-name">{alug.fornecedor}</td>
                     <td>{alug.contribuinte || 'N/A'}</td>
                     <td>{alug.especialidade || 'N/A'}</td>
                     <td class="rating">{calculateAluguerScore(alug)}</td>
-                    <td class="status-{getStatusAluguer(alug).class}">{getStatusAluguer(alug).text}</td>
+                    <td class="status-{getStatusAluguer(alug).class}">
+                      {getStatusAluguer(alug).text}
+                      {#if getStatusAluguer(alug).class === 'eliminated'}
+                        <span class="status-tooltip">🚫</span>
+                      {/if}
+                    </td>
                     <td class="actions-cell">
                       <div class="actions-buttons">
                         <button 
                           class="btn-details" 
-                          on:click={() => window.open(`/obras/entidade/${alug.id}`, "_self")}
+                          on:click={() => window.location.href = `/obras/entidade/${alug.id}`}
                         >
                           Ver Detalhes
                         </button>
                         <button 
                           class="edit-button"
                           on:click={() => openEditModal(alug)}
+                          disabled={getStatusAluguer(alug).class === 'eliminated'}
                         >
                           Editar
                         </button>
@@ -1606,4 +1679,16 @@ function selectExistingEntity(entidade) {
     border: 1px dashed #ddd;
     border-radius: 4px;
   }
+
+  .table-row.eliminated {
+  background-color: #ffebee;
+}
+
+.table-row.eliminated:hover {
+  background-color: #ffcdd2;
+}
+
+.main-tab-button {
+  transition: none;
+}
 </style>

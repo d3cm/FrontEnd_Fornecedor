@@ -26,8 +26,26 @@
   }
 
   const voltar = () => {
+  const referrer = document.referrer;
+  
+  if (referrer.includes('/obras/')) {
+    const obraId = referrer.split('/obras/')[1].split('/')[0];
+    const tabType = getTabTypeFromEntityType(entidadeData.tipo);
+    window.location.href = `/obras/${obraId}?tab=${tabType}`;
+  } else {
     window.history.back();
   }
+}
+
+function getTabTypeFromEntityType(entityType) {
+  const tipo = entityType.toLowerCase();
+  
+  if (tipo.includes('fornecedor')) return 'fornecedores';
+  if (tipo.includes('empreitada')) return 'empreitadas';
+  if (tipo.includes('aluguer')) return 'alugueres';
+  
+  return 'fornecedores'; // padrão
+}
 
   function calculateFornecedorScore(fornecedor) {
     if (!fornecedor.parametrosFornecedor) return 0;
@@ -391,6 +409,7 @@
 {#if groupedEntities.length > 0}
 <div class="grouped-entities-section">
   <h2>Média da nota / obra</h2>
+
     {#each groupedEntities as group}
       {#if group.entities.some(e => e.id === parseInt(id))}
         <div class="grouped-entity-card">
@@ -431,7 +450,7 @@
         </div>
       {/if}
     {/each}
-</div>
+  </div>
 {/if}
   </div>
 {:else}
@@ -441,234 +460,3 @@
     <button class="btn-back" on:click={voltar}>← Voltar</button>
   </div>
 {/if}
-
-<style>
-  .entity-detail-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-
-  .header-section {
-    margin-bottom: 30px;
-    position: relative;
-  }
-
-  .btn-back {
-    background: #0372e9;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-bottom: 20px;
-  }
-
-  .btn-back:hover {
-    opacity: 0.8;
-  }
-
-  .entity-id {
-    color: #666;
-    font-size: 0.9em;
-  }
-
-  .entity-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 30px;
-  }
-
-  .info-card {
-    background: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-
-  .info-item {
-    margin-bottom: 10px;
-  }
-
-  .parameters-section {
-    background: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-  }
-
-  .parameters-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-  }
-
-  .parameter-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    border-bottom: 1px solid #eee;
-  }
-
-  .parameter-value {
-    font-weight: bold;
-  }
-
-  .observations-card {
-    background: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 30px;
-  }
-
-  .observations-content {
-    margin-top: 10px;
-    white-space: pre-line;
-  }
-
-  .grouped-entities-section {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  margin-bottom: 20px;
-}
-
-.grouped-entities-section h2 {
-  color: #333;
-  margin-bottom: 15px;
-}
-
-.grouped-info {
-  color: #666;
-  font-style: italic;
-  margin-bottom: 15px;
-}
-
-.grouped-entities-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 20px;
-  margin-top: 15px;
-}
-
-  .grouped-entity-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  }
-
-  .group-header h3 {
-    margin: 0 0 10px 0;
-    color: #333;
-    font-size: 1.1em;
-  }
-
-  .group-info {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-bottom: 15px;
-  }
-
-  .group-info span {
-    font-size: 0.9em;
-    color: #666;
-  }
-
-  .contribuinte {
-    font-weight: bold;
-    color: #0372e9;
-  }
-
-  .count {
-    background: #e9ecef;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.8em;
-    width: fit-content;
-  }
-
-  .stat-item {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
-  .stat-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .score-value {
-    font-weight: bold;
-    color: #0372e9;
-    font-size: 1.1em;
-  }
-
-  .entities-list {
-    border-top: 1px solid #eee;
-    padding-top: 15px;
-  }
-
-  .entities-list h4 {
-    margin: 0 0 10px 0;
-    font-size: 0.9em;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .entity-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    margin-bottom: 5px;
-    font-size: 0.9em;
-    transition: background-color 0.2s ease;
-  }
-
-  .entity-item:hover {
-    background: #e9ecef;
-  }
-
-  .entity-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .entity-score {
-    font-weight: bold;
-    color: #333;
-  }
-
-  .status-eliminated { color: #ff4444; font-weight: bold; }
-  .status-risk { color: #ffbb33; font-weight: bold; }
-  .status-approved { color: #00C851; font-weight: bold; }
-  .status-excellent { color: #4285F4; font-weight: bold; }
-  .status-undefined { color: #aaa; }
-
-  @media (max-width: 768px) {
-    
-
-    .entity-info-grid {
-      grid-template-columns: 1fr;
-    }
-    
-    .grouped-entities-grid {
-      grid-template-columns: 1fr;
-    }
-    
-    .entity-detail-container {
-      padding: 15px;
-    }
-    
-    .grouped-entities-section {
-      padding: 20px;
-    }
-  }
-</style>
