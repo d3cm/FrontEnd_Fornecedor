@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { getObra_Entidade_ParametroById, postEntidade, getEntidades, putEntidade } from '../../api/api';
-  import '../CSS/style.css'; 
+  import '../CSS/style.css';
 
   let id = null;
   let obraData = null;
@@ -51,33 +51,37 @@
   }
 
   onMount(async () => {
-  try {
-    id = getIdFromUrl();
+    try {
+      id = getIdFromUrl();
+      console.log('ID extraído da URL:', id); // Debug
+      
+      if (!id) {
+        throw new Error('ID da obra inválido ou não encontrado na URL');
+      }
 
-    // Lê a aba da URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = urlParams.get('tab');
-    
-    if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
-      activeMainTab = tabParam;
-    }
-    
-    if (!id) {
-      throw new Error('ID da obra não encontrado na URL');
-    }
-    
-    obraData = await getObra_Entidade_ParametroById(id);
-    
-    if (!obraData || !obraData.obra) {
-      throw new Error('Obra não encontrada');
-    }
+      // Verifica parâmetro de tab na URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
+        activeMainTab = tabParam;
+      }
 
-    loading = false;
-  } catch (err) {
-    error = err.message;
-    loading = false;
-  }
-});
+      // Busca dados da obra
+      obraData = await getObra_Entidade_ParametroById(id);
+      console.log('Dados recebidos da API:', obraData); // Debug
+
+      if (!obraData || !obraData.obra) {
+        throw new Error('A API não retornou dados válidos para a obra');
+      }
+
+      loading = false;
+    } catch (err) {
+      console.error('Erro ao carregar dados:', err);
+      error = err.message || 'Erro desconhecido ao carregar os dados';
+      loading = false;
+    }
+  });
+
 
 onMount(() => {
   window.addEventListener('popstate', handlePopState);
@@ -704,6 +708,14 @@ onMount(() => {
   }
 }
 
+  function goToFinalizacao() {
+    // Pega o ID da obra da URL atual
+    const id_obra = getIdFromUrl(); 
+    
+    // Redireciona para finalizacao.svelte passando o ID como parâmetro
+    window.location.href = `./finalizacao/${id_obra}`;
+  }
+
 
 </script>
 
@@ -716,7 +728,8 @@ onMount(() => {
   <div class="error-message">
     <h2>Erro ao carregar dados</h2>
     <p>{error}</p>
-    <button class="btn-back" on:click={voltar}>← Voltar</button>
+    <p class="debug-info">ID tentado: {id || 'Nenhum ID encontrado'}</p>
+    <button class="btn-back" on:click={() => window.history.back()}>← Voltar</button>
   </div>
 {:else if obraData && obraData.obra}
   <div class="obra-detail-container">
@@ -729,6 +742,15 @@ onMount(() => {
         {/if}
       </h1>
     </div>
+
+
+
+    <button 
+    class="btn-details" 
+    on:click={goToFinalizacao}
+  >
+    Ver Detalhes/PDF
+  </button>
 
     <div class="obra-info">
       <div class="info-grid">
@@ -823,7 +845,6 @@ onMount(() => {
                         <button 
                           class="edit-button"
                           on:click={() => openEditModal(forn)}
-                          disabled={getStatusFornecedor(forn).class === 'eliminated'}
                         >
                           Editar
                         </button>
@@ -858,9 +879,6 @@ onMount(() => {
                     <td class="rating">{calculateEmpreitadaScore(emp)}</td>
                     <td class="status-{getStatusEmpreitada(emp).class}">
                       {getStatusEmpreitada(emp).text}
-                      {#if getStatusEmpreitada(emp).class === 'eliminated'}
-                        <span class="status-tooltip">🚫</span>
-                      {/if}
                     </td>
                     <td class="actions-cell">
                       <div class="actions-buttons">
@@ -873,7 +891,6 @@ onMount(() => {
                         <button 
                           class="edit-button"
                           on:click={() => openEditModal(emp)}
-                          disabled={getStatusEmpreitada(emp).class === 'eliminated'}
                         >
                           Editar
                         </button>
@@ -923,7 +940,6 @@ onMount(() => {
                         <button 
                           class="edit-button"
                           on:click={() => openEditModal(alug)}
-                          disabled={getStatusAluguer(alug).class === 'eliminated'}
                         >
                           Editar
                         </button>
@@ -1493,7 +1509,7 @@ onMount(() => {
                   <label for="comformidade_servico">Conformidade Serviço (1-5)</label>
                   <input 
                     type="range" 
-                    id="comformidade_servico" 
+                    id="comformidade_servico"
                     min="1" 
                     max="5" 
                     bind:value={newEntity.parametrosEmpreitada.comformidade_servico}

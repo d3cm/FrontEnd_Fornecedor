@@ -17,6 +17,8 @@
     "vitest": "latest"
   },
   "dependencies": {
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "postcss-nesting": "^11.3.0"
   }
 }
