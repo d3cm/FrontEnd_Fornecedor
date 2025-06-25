@@ -748,15 +748,6 @@ onMount(() => {
       </h1>
     </div>
 
-
-
-    <button 
-    class="btn-details" 
-    on:click={goToFinalizacao}
-  >
-    Ver Detalhes/PDF
-  </button>
-
     <div class="obra-info">
       <div class="info-grid">
         <div class="info-item">
@@ -802,6 +793,13 @@ onMount(() => {
 
       <!-- Add Entity Button -->
       <div class="action-bar">
+        <button 
+          class="btn-details" 
+          on:click={goToFinalizacao}
+        >
+          Ver Detalhes/PDF
+        </button>
+
         <button class="btn-add-entity" on:click={openAddModal}>
           + Adicionar {activeMainTab === 'fornecedores' ? 'Fornecedor' : activeMainTab === 'empreitadas' ? 'Empreitada' : 'Aluguer'}
         </button>
