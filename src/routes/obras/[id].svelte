@@ -51,36 +51,41 @@
   }
 
   onMount(async () => {
-    try {
-      id = getIdFromUrl();
-      console.log('ID extraído da URL:', id); // Debug
-      
-      if (!id) {
-        throw new Error('ID da obra inválido ou não encontrado na URL');
-      }
-
-      // Verifica parâmetro de tab na URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab');
-      if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
-        activeMainTab = tabParam;
-      }
-
-      // Busca dados da obra
-      obraData = await getObra_Entidade_ParametroById(id);
-      console.log('Dados recebidos da API:', obraData); // Debug
-
-      if (!obraData || !obraData.obra) {
-        throw new Error('A API não retornou dados válidos para a obra');
-      }
-
-      loading = false;
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-      error = err.message || 'Erro desconhecido ao carregar os dados';
-      loading = false;
+  try {
+    id = getIdFromUrl();
+    console.log('ID extraído da URL:', id);
+    
+    if (!id) {
+      throw new Error('ID da obra inválido ou não encontrado na URL');
     }
-  });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam && ['fornecedores', 'empreitadas', 'alugueres'].includes(tabParam)) {
+      activeMainTab = tabParam;
+    }
+
+    // Busca dados da obra
+    const response = await getObra_Entidade_ParametroById(id);
+    
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    
+    obraData = response;
+    console.log('Dados recebidos da API:', obraData);
+
+    if (!obraData || !obraData.obra) {
+      throw new Error('A API não retornou dados válidos para a obra');
+    }
+
+    loading = false;
+  } catch (err) {
+    console.error('Erro ao carregar dados:', err);
+    error = err.message || 'Erro desconhecido ao carregar os dados';
+    loading = false;
+  }
+});
 
 
 onMount(() => {
@@ -678,35 +683,35 @@ onMount(() => {
     }
   }
 
-  async function submitNewEntity() {
-  isSubmitting = true;
-  submitError = null;
-  
-  try {
-    if (!newEntity.fornecedor.trim()) {
-      throw new Error('Nome do fornecedor é obrigatório');
+    async function submitNewEntity() {
+    isSubmitting = true;
+    submitError = null;
+    
+    try {
+      if (!newEntity.fornecedor.trim()) {
+        throw new Error('Nome do fornecedor é obrigatório');
+      }
+      
+      if (!newEntity.especialidade.trim()) {
+        throw new Error('Especialidade é obrigatória');
+      }
+      
+      await postEntidade(newEntity);
+      
+      // Fecha o modal
+      closeAddModal();
+      
+      // Recarrega a página mantendo a aba ativa
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', activeMainTab);
+      window.location.href = url.toString();
+      
+    } catch (err) {
+      submitError = err.message || 'Erro ao adicionar entidade';
+    } finally {
+      isSubmitting = false;
     }
-    
-    if (!newEntity.especialidade.trim()) {
-      throw new Error('Especialidade é obrigatória');
-    }
-    
-    await postEntidade(newEntity);
-    
-    // Fecha o modal
-    closeAddModal();
-    
-    // Recarrega a página mantendo a aba ativa
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', activeMainTab);
-    window.location.href = url.toString();
-    
-  } catch (err) {
-    submitError = err.message || 'Erro ao adicionar entidade';
-  } finally {
-    isSubmitting = false;
   }
-}
 
   function goToFinalizacao() {
     // Pega o ID da obra da URL atual
@@ -728,7 +733,7 @@ onMount(() => {
   <div class="error-message">
     <h2>Erro ao carregar dados</h2>
     <p>{error}</p>
-    <p class="debug-info">ID tentado: {id || 'Nenhum ID encontrado'}</p>
+    <p class="debug-info">ID: {id || 'Nenhum ID encontrado'}</p>
     <button class="btn-back" on:click={() => window.history.back()}>← Voltar</button>
   </div>
 {:else if obraData && obraData.obra}
