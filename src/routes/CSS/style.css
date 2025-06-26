@@ -1062,6 +1062,25 @@ h2 {
   justify-content: flex-end;
 }
 
+/* Action Bar - Versão à esquerda */
+.action-bar-left {
+  margin: 20px 0;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.btn-add-entity-left {
+  background: #1158c4;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
 .btn-add-entity {
   background: #28a745;
   color: white;
