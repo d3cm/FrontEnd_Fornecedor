@@ -693,6 +693,22 @@ const getStatusColor = (status) => {
       loading = false;
     }
   });
+
+// Função para navegar para a página da entidade
+const navigateToEntidade = (entidadeId) => {
+  // Obtém o ID da obra da URL atual (formato: /obras/[id])
+  const pathParts = window.location.pathname.split('/');
+  const obraId = pathParts.length > 2 ? pathParts[2] : null;
+  
+  if (obraId) {
+    // Navega mantendo o contexto da obra
+    window.location.href = `/obras/entidade/${entidadeId}`;
+  } else {
+    // Navegação direta sem contexto de obra
+    window.location.href = `../entidade/${entidadeId}`;
+  }
+};
+
   </script>
   
   {#if loading}
@@ -797,7 +813,7 @@ const getStatusColor = (status) => {
                     {@const entidade = item.entidade}
                     {@const validacao = item.validacao}
                     
-                    <tr>
+                    <tr on:click={() => navigateToEntidade(entidade.id)} class="clickable-row">
                       <td>{validacao.id || 'N/A'}</td>
                       <td>{entidade.id}</td>
                       <td>{entidade.fornecedor || 'N/A'}</td>
@@ -819,7 +835,7 @@ const getStatusColor = (status) => {
                         {/if}
                       </td>
                       <td>
-                        <button on:click={() => abrirModalValidacao(entidade, true)} class="btn-view">
+                        <button on:click|stopPropagation={() => abrirModalValidacao(entidade, true)} class="btn-view">
                           Detalhes
                         </button>
                       </td>
@@ -830,7 +846,7 @@ const getStatusColor = (status) => {
             </section>
           {/if}
         {/each}
-  
+      
         {#each Object.entries(tiposEntidades) as [tipo, label]}
           {@const entidadesPendentes = filtrarEntidadesPendentes(tipo)}
           {#if entidadesPendentes.length > 0}
@@ -855,7 +871,7 @@ const getStatusColor = (status) => {
                   {#each entidadesPendentes as entidade}
                     {@const statusAutomatico = getStatus(calcularPontuacao(entidade), entidade.tipo || '')}
                     
-                    <tr>
+                    <tr on:click={() => navigateToEntidade(entidade.id)} class="clickable-row">
                       <td>{entidade.id}</td>
                       <td>{entidade.fornecedor}</td>
                       <td>{formatContribuinte(entidade.contribuinte)}</td>
@@ -865,7 +881,7 @@ const getStatusColor = (status) => {
                       </td>
                       <td>{formatDate(entidade.data_criacao)}</td>
                       <td>
-                        <button on:click={() => abrirModalValidacao(entidade)} class="btn-validate">
+                        <button on:click|stopPropagation={() => abrirModalValidacao(entidade)} class="btn-validate">
                           Validar
                         </button>
                       </td>
@@ -876,7 +892,7 @@ const getStatusColor = (status) => {
             </section>
           {/if}
         {/each}
-  
+      
         {#if obraData?.entidades?.length === 0}
           <div class="no-entities">
             <p>Nenhuma entidade encontrada para esta obra</p>
@@ -884,36 +900,44 @@ const getStatusColor = (status) => {
         {/if}
       </main>
   
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
       {#if showValidationModal && entidadeSelecionada}
         {@const statusCalculado = getStatus(calcularPontuacao(entidadeSelecionada), entidadeSelecionada.tipo || '')}
         {@const temValidacao = validacaoSelecionada !== null}
         
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
         <div class="modal-overlay" on:click|self={fecharModal}>
           <div class="modal-content">
             <h2>{isEditingValidation ? 'Editar Validação' : 'Validar Entidade'} (ID: {entidadeSelecionada.id})</h2>
             
             <div class="modal-grid">
               <div class="modal-field">
+                <!-- svelte-ignore a11y-label-has-associated-control -->
                 <label><strong>Tipo:</strong></label>
                 <div>{tiposEntidades[entidadeSelecionada.tipo] || entidadeSelecionada.tipo}</div>
               </div>
               
               <div class="modal-field">
+                <!-- svelte-ignore a11y-label-has-associated-control -->
                 <label><strong>Fornecedor:</strong></label>
                 <div>{entidadeSelecionada.fornecedor || 'N/A'}</div>
               </div>
               
               <div class="modal-field">
+                <!-- svelte-ignore a11y-label-has-associated-control -->
                 <label><strong>NIF:</strong></label>
                 <div>{formatContribuinte(entidadeSelecionada.contribuinte)}</div>
               </div>
               
               <div class="modal-field">
+                <!-- svelte-ignore a11y-label-has-associated-control -->
                 <label><strong>Pontuação Calculada:</strong></label>
                 <div>{calcularPontuacao(entidadeSelecionada)} pontos</div>
               </div>
               
               <div class="modal-field">
+                <!-- svelte-ignore a11y-label-has-associated-control -->
                 <label><strong>Classificação Automática:</strong></label>
                 <div class={statusCalculado.classe}>{statusCalculado.texto}</div>
               </div>
@@ -942,7 +966,9 @@ const getStatusColor = (status) => {
               {/if}
               
               {#if temValidacao}
+                <!-- svelte-ignore a11y-label-has-associated-control -->
                 <div class="modal-field full-width">
+                  <!-- svelte-ignore a11y-label-has-associated-control -->
                   <label><strong>Data da Validação:</strong></label>
                   <div>{formatDate(validacaoSelecionada.data_avaliacao)}</div>
                 </div>
