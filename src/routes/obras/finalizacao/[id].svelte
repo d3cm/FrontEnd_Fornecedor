@@ -27,6 +27,8 @@
   let jsPDF = null;
   let generatingPDF = false;
   let isEditingValidation = false;
+  let searchTerm = '';
+  let searchActive = false;
   
   const tiposEntidades = {
     fornecedor: 'Fornecedores',
@@ -105,6 +107,23 @@
       console.error('Erro ao carregar validações:', err);
       validacoesPorEntidade = {};
     }
+  };
+  
+  const filterEntities = (entities, isValidationTable = false) => {
+    if (!searchTerm) return entities;
+    
+    const term = searchTerm.toLowerCase();
+    
+    return entities.filter(item => {
+      const entidade = isValidationTable ? item.entidade : item;
+      
+      return (
+        (entidade.id?.toString().includes(term)) ||
+        (entidade.fornecedor?.toLowerCase().includes(term)) ||
+        (formatContribuinte(entidade.contribuinte)?.toLowerCase().includes(term)) ||
+        (isValidationTable ? item.validacao.id?.toString().includes(term) : false)
+      );
+    });
   };
   
   const abrirModalValidacao = async (entidade, editMode = false) => {
@@ -410,246 +429,215 @@
   };
   
   const gerarPDF = async (tipoRelatorio = 'completo') => {
-  try {
-    generatingPDF = true;
-    await carregarJsPDF();
-    
-    if (!obraData) {
-      throw new Error('Dados da obra não disponíveis');
-    }
-
-    const dados = obterDadosParaPDF(tipoRelatorio);
-    
-    if (dados.length === 0) {
-      alert(`Nenhuma entidade encontrada para o relatório "${getTituloRelatorio(tipoRelatorio)}"`);
-      return;
-    }
-
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4'
-    });
-    
-    let yPosition = 20;
-    const leftMargin = 10;
-    const pageWidth = doc.internal.pageSize.width;
-    const pageHeight = doc.internal.pageSize.height;
-    const lineHeight = 6;
-    const cellPadding = 2;
-
-    const adicionarNovaPagina = () => {
-      doc.addPage('landscape');
-      yPosition = 20;
-    };
-
-    // Função para desenhar linha horizontal
-    const drawHorizontalLine = (x1, x2, y) => {
-      doc.setDrawColor(0, 0, 0); // Cor preta
-      doc.setLineWidth(0.1);
-      doc.line(x1, y, x2, y);
-    };
-
-    // Função para desenhar linha vertical
-    const drawVerticalLine = (x, y1, y2) => {
-      doc.setDrawColor(0, 0, 0); // Cor preta
-      doc.setLineWidth(0.1);
-      doc.line(x, y1, x, y2);
-    };
-
-    // Função para desenhar bordas completas da tabela
-    const drawTableBorders = (startY, endY, rowHeight = lineHeight) => {
-      const tableWidth = colunas.reduce((sum, col) => sum + col.width, 0);
+    try {
+      generatingPDF = true;
+      await carregarJsPDF();
       
-      // Linhas horizontais (topo e base da linha)
-      drawHorizontalLine(leftMargin, leftMargin + tableWidth, startY);
-      drawHorizontalLine(leftMargin, leftMargin + tableWidth, endY);
+      if (!obraData) {
+        throw new Error('Dados da obra não disponíveis');
+      }
+
+      const dados = obterDadosParaPDF(tipoRelatorio);
       
-      // Linhas verticais
-      let xPos = leftMargin;
-      colunas.forEach((coluna, index) => {
-        drawVerticalLine(xPos, startY, endY);
-        xPos += coluna.width;
-        
-        // Última linha vertical (borda direita)
-        if (index === colunas.length - 1) {
-          drawVerticalLine(xPos, startY, endY);
-        }
+      if (dados.length === 0) {
+        alert(`Nenhuma entidade encontrada para o relatório "${getTituloRelatorio(tipoRelatorio)}"`);
+        return;
+      }
+
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
       });
-    };
-
-    // Configurações de fonte
-    doc.setFont('helvetica');
-    doc.setFontSize(18);
-    doc.text(`Relatório: ${getTituloRelatorio(tipoRelatorio)}`, leftMargin, yPosition);
-    yPosition += 10;
-
-    doc.setFontSize(12);
-    doc.text(`Obra: ${obraData.obra?.nome || 'N/A'} (${obraData.obra?.codigo || 'N/A'})`, leftMargin, yPosition);
-    yPosition += lineHeight;
-    doc.text(`Data do relatório: ${new Date().toLocaleDateString('pt-PT')}`, leftMargin, yPosition);
-    yPosition += lineHeight;
-    doc.text(`Total de entidades: ${dados.length}`, leftMargin, yPosition);
-    yPosition += lineHeight * 2;
-
-    // Definição das colunas
-    const colunas = [
-      { header: 'ID', width: 15 },
-      { header: 'Nome', width: 40 },
-      { header: 'Tipo', width: 25 },
-      { header: 'NIF', width: 25 },
-      { header: 'Pontos', width: 15 },
-      { header: 'Status', width: 20 },
-      { header: 'Validado', width: 15 },
-      { header: 'Data Val.', width: 25 },
-      { header: 'Diretor', width: 30 },
-      { header: 'Observações', width: 60 }
-    ];
-
-    // Função para desenhar cabeçalho da tabela
-    const drawTableHeader = () => {
-      const headerStartY = yPosition;
       
-      // Desenhar fundo cinza para o cabeçalho
-      doc.setFillColor(240, 240, 240);
-      const tableWidth = colunas.reduce((sum, col) => sum + col.width, 0);
-      doc.rect(leftMargin, headerStartY, tableWidth, lineHeight, 'F');
-      
-      // Texto do cabeçalho
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
+      let yPosition = 20;
+      const leftMargin = 10;
+      const pageWidth = doc.internal.pageSize.width;
+      const pageHeight = doc.internal.pageSize.height;
+      const lineHeight = 6;
+      const cellPadding = 2;
+
+      const adicionarNovaPagina = () => {
+        doc.addPage('landscape');
+        yPosition = 20;
+      };
+
+      const drawHorizontalLine = (x1, x2, y) => {
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.1);
+        doc.line(x1, y, x2, y);
+      };
+
+      const drawVerticalLine = (x, y1, y2) => {
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.1);
+        doc.line(x, y1, x, y2);
+      };
+
+      const drawTableBorders = (startY, endY, rowHeight = lineHeight) => {
+        const tableWidth = colunas.reduce((sum, col) => sum + col.width, 0);
+        
+        drawHorizontalLine(leftMargin, leftMargin + tableWidth, startY);
+        drawHorizontalLine(leftMargin, leftMargin + tableWidth, endY);
+        
+        let xPos = leftMargin;
+        colunas.forEach((coluna, index) => {
+          drawVerticalLine(xPos, startY, endY);
+          xPos += coluna.width;
+          
+          if (index === colunas.length - 1) {
+            drawVerticalLine(xPos, startY, endY);
+          }
+        });
+      };
+
+      doc.setFont('helvetica');
+      doc.setFontSize(18);
+      doc.text(`Relatório: ${getTituloRelatorio(tipoRelatorio)}`, leftMargin, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(12);
+      doc.text(`Obra: ${obraData.obra?.nome || 'N/A'} (${obraData.obra?.codigo || 'N/A'})`, leftMargin, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Data do relatório: ${new Date().toLocaleDateString('pt-PT')}`, leftMargin, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Total de entidades: ${dados.length}`, leftMargin, yPosition);
+      yPosition += lineHeight * 2;
+
+      const colunas = [
+        { header: 'ID', width: 15 },
+        { header: 'Nome', width: 40 },
+        { header: 'Tipo', width: 25 },
+        { header: 'NIF', width: 25 },
+        { header: 'Pontos', width: 15 },
+        { header: 'Status', width: 20 },
+        { header: 'Validado', width: 15 },
+        { header: 'Data Val.', width: 25 },
+        { header: 'Diretor', width: 30 },
+        { header: 'Observações', width: 60 }
+      ];
+
+      const drawTableHeader = () => {
+        const headerStartY = yPosition;
+        
+        doc.setFillColor(240, 240, 240);
+        const tableWidth = colunas.reduce((sum, col) => sum + col.width, 0);
+        doc.rect(leftMargin, headerStartY, tableWidth, lineHeight, 'F');
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        
+        let xPos = leftMargin;
+        colunas.forEach(coluna => {
+          doc.text(coluna.header, xPos + cellPadding, yPosition + cellPadding + 3);
+          xPos += coluna.width;
+        });
+        
+        drawTableBorders(headerStartY, headerStartY + lineHeight);
+        
+        yPosition += lineHeight;
+      };
+
+      drawTableHeader();
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
       doc.setTextColor(0, 0, 0);
       
-      let xPos = leftMargin;
-      colunas.forEach(coluna => {
-        doc.text(coluna.header, xPos + cellPadding, yPosition + cellPadding + 3);
-        xPos += coluna.width;
+      dados.forEach((entidade, index) => {
+        const observacoesLines = splitTextIntoLines(
+          entidade.observacoes || 'Nenhuma', 
+          colunas[9].width - cellPadding * 2, 
+          doc
+        );
+        
+        const cellHeight = Math.max(lineHeight, observacoesLines.length * lineHeight);
+        
+        if (yPosition + cellHeight > pageHeight - 30) {
+          adicionarNovaPagina();
+          drawTableHeader();
+        }
+
+        const rowStartY = yPosition;
+        
+        if (index % 2 === 0) {
+          doc.setFillColor(250, 250, 250);
+          const tableWidth = colunas.reduce((sum, col) => sum + col.width, 0);
+          doc.rect(leftMargin, rowStartY, tableWidth, cellHeight, 'F');
+        }
+        
+        let xPos = leftMargin;
+        
+        doc.text(entidade.id?.toString() || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[0].width;
+        
+        doc.text(entidade.nome || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[1].width;
+        
+        doc.text(entidade.tipo || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[2].width;
+        
+        doc.text(entidade.contribuinte || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[3].width;
+        
+        doc.text(entidade.pontuacao?.toString() || '0', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[4].width;
+        
+        const statusColor = getStatusColor(entidade.status);
+        doc.setTextColor(statusColor.r, statusColor.g, statusColor.b);
+        doc.text(entidade.status || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        doc.setTextColor(0, 0, 0);
+        xPos += colunas[5].width;
+        
+        doc.text(entidade.validada ? 'Sim' : 'Não', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[6].width;
+        
+        doc.text(entidade.dataValidacao || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[7].width;
+        
+        doc.text(entidade.diretor || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
+        xPos += colunas[8].width;
+        
+        observacoesLines.forEach((line, i) => {
+          doc.text(line, xPos + cellPadding, yPosition + cellPadding + 3 + (i * lineHeight));
+        });
+        
+        drawTableBorders(rowStartY, rowStartY + cellHeight);
+        
+        yPosition += cellHeight;
       });
-      
-      // Desenhar bordas do cabeçalho
-      drawTableBorders(headerStartY, headerStartY + lineHeight);
-      
+
       yPosition += lineHeight;
-    };
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Relatório gerado em ${new Date().toLocaleString('pt-PT')}`, leftMargin, yPosition);
+      
+      const nomeArquivo = `Relatorio_${getTituloRelatorio(tipoRelatorio).replace(/[^a-zA-Z0-9]/g, '_')}_${obraData.obra?.codigo || 'obra'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.save(nomeArquivo);
+      
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert(`Erro ao gerar PDF: ${error.message}`);
+    } finally {
+      generatingPDF = false;
+    }
+  };
 
-    // Desenhar cabeçalho inicial
-    drawTableHeader();
-
-    // Dados da tabela
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    
-    dados.forEach((entidade, index) => {
-      // Processar observações (pode ter múltiplas linhas)
-      const observacoesLines = splitTextIntoLines(
-        entidade.observacoes || 'Nenhuma', 
-        colunas[9].width - cellPadding * 2, 
-        doc
-      );
-      
-      // Calcular altura necessária para esta linha
-      const cellHeight = Math.max(lineHeight, observacoesLines.length * lineHeight);
-      
-      // Verificar se precisa de nova página
-      if (yPosition + cellHeight > pageHeight - 30) {
-        adicionarNovaPagina();
-        drawTableHeader();
-      }
-
-      const rowStartY = yPosition;
-      
-      // Alternar cor de fundo das linhas para melhor legibilidade
-      if (index % 2 === 0) {
-        doc.setFillColor(250, 250, 250);
-        const tableWidth = colunas.reduce((sum, col) => sum + col.width, 0);
-        doc.rect(leftMargin, rowStartY, tableWidth, cellHeight, 'F');
-      }
-      
-      let xPos = leftMargin;
-      
-      // ID
-      doc.text(entidade.id?.toString() || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[0].width;
-      
-      // Nome
-      doc.text(entidade.nome || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[1].width;
-      
-      // Tipo
-      doc.text(entidade.tipo || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[2].width;
-      
-      // NIF
-      doc.text(entidade.contribuinte || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[3].width;
-      
-      // Pontos
-      doc.text(entidade.pontuacao?.toString() || '0', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[4].width;
-      
-      // Status (com cor baseada no status)
-      const statusColor = getStatusColor(entidade.status);
-      doc.setTextColor(statusColor.r, statusColor.g, statusColor.b);
-      doc.text(entidade.status || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      doc.setTextColor(0, 0, 0); // Voltar para preto
-      xPos += colunas[5].width;
-      
-      // Validado
-      doc.text(entidade.validada ? 'Sim' : 'Não', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[6].width;
-      
-      // Data Val.
-      doc.text(entidade.dataValidacao || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[7].width;
-      
-      // Diretor
-      doc.text(entidade.diretor || 'N/A', xPos + cellPadding, yPosition + cellPadding + 3);
-      xPos += colunas[8].width;
-      
-      // Observações (multilinha)
-      observacoesLines.forEach((line, i) => {
-        doc.text(line, xPos + cellPadding, yPosition + cellPadding + 3 + (i * lineHeight));
-      });
-      
-      // Desenhar bordas da linha
-      drawTableBorders(rowStartY, rowStartY + cellHeight);
-      
-      yPosition += cellHeight;
-    });
-
-    // Rodapé
-    yPosition += lineHeight;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Relatório gerado em ${new Date().toLocaleString('pt-PT')}`, leftMargin, yPosition);
-    
-    const nomeArquivo = `Relatorio_${getTituloRelatorio(tipoRelatorio).replace(/[^a-zA-Z0-9]/g, '_')}_${obraData.obra?.codigo || 'obra'}_${new Date().toISOString().slice(0, 10)}.pdf`;
-    doc.save(nomeArquivo);
-    
-  } catch (error) {
-    console.error('Erro ao gerar PDF:', error);
-    alert(`Erro ao gerar PDF: ${error.message}`);
-  } finally {
-    generatingPDF = false;
-  }
-};
-
-// Função auxiliar para obter cores baseadas no status
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'Excelente':
-      return { r: 0, g: 128, b: 0 }; // Verde
-    case 'Bom':
-      return { r: 0, g: 100, b: 200 }; // Azul
-    case 'Em Risco':
-      return { r: 255, g: 140, b: 0 }; // Laranja
-    case 'Eliminado':
-      return { r: 220, g: 20, b: 60 }; // Vermelho
-    default:
-      return { r: 0, g: 0, b: 0 }; // Preto
-  }
-};
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Excelente':
+        return { r: 0, g: 128, b: 0 };
+      case 'Bom':
+        return { r: 0, g: 100, b: 200 };
+      case 'Em Risco':
+        return { r: 255, g: 140, b: 0 };
+      case 'Eliminado':
+        return { r: 220, g: 20, b: 60 };
+      default:
+        return { r: 0, g: 0, b: 0 };
+    }
+  };
   
   const getTituloRelatorio = (tipo) => {
     switch (tipo) {
@@ -694,333 +682,371 @@ const getStatusColor = (status) => {
     }
   });
 
-// Função para navegar para a página da entidade
-const navigateToEntidade = (entidadeId) => {
-  // Obtém o ID da obra da URL atual (formato: /obras/[id])
-  const pathParts = window.location.pathname.split('/');
-  const obraId = pathParts.length > 2 ? pathParts[2] : null;
-  
-  if (obraId) {
-    // Navega mantendo o contexto da obra
-    window.location.href = `/obras/entidade/${entidadeId}`;
-  } else {
-    // Navegação direta sem contexto de obra
-    window.location.href = `../entidade/${entidadeId}`;
-  }
-};
+  const navigateToEntidade = (entidadeId) => {
+    const pathParts = window.location.pathname.split('/');
+    const obraId = pathParts.length > 2 ? pathParts[2] : null;
+    
+    if (obraId) {
+      window.location.href = `/obras/entidade/${entidadeId}`;
+    } else {
+      window.location.href = `../entidade/${entidadeId}`;
+    }
+  };
+</script>
 
-  </script>
-  
-  {#if loading}
-    <div class="loading">
-      <div>⏳</div>
-      <p>Carregando dados da obra...</p>
-    </div>
-  {:else if error}
-    <div class="error">
-      <h2>Erro ao carregar dados</h2>
-      <p>{error}</p>
-      <p>ID tentado: {id || 'nenhum ID encontrado'}</p>
-      <button on:click={() => window.history.back()}>← Voltar</button>
-    </div>
-  {:else if obraData && obraData.obra}
-    <div class="container">
-      <header>
-        <div class="header-actions">
-          <button on:click={() => window.history.back()}>← Voltar</button>
-          <div class="pdf-buttons">
-            <button on:click={() => gerarPDF('completo')} class="btn-pdf" disabled={generatingPDF}>
-              {generatingPDF ? '⏳ Gerando...' : '📋 Completo'}
-            </button>
-            <button on:click={() => gerarPDF('aprovados')} class="btn-pdf" disabled={generatingPDF}>
-              {generatingPDF ? '⏳ Gerando...' : '✅ Aprovados'}
-            </button>
-            <button on:click={() => gerarPDF('risco')} class="btn-pdf" disabled={generatingPDF}>
-              {generatingPDF ? '⏳ Gerando...' : '⚠️ Em Risco'}
-            </button>
-            <button on:click={() => gerarPDF('eliminados')} class="btn-pdf btn-eliminados" disabled={generatingPDF}>
-              {generatingPDF ? '⏳ Gerando...' : '🚫 Lista Negra'}
-            </button>
-          </div>
+{#if loading}
+  <div class="loading">
+    <div>⏳</div>
+    <p>Carregando dados da obra...</p>
+  </div>
+{:else if error}
+  <div class="error">
+    <h2>Erro ao carregar dados</h2>
+    <p>{error}</p>
+    <p>ID tentado: {id || 'nenhum ID encontrado'}</p>
+    <button on:click={() => window.history.back()}>← Voltar</button>
+  </div>
+{:else if obraData && obraData.obra}
+  <div class="container">
+    <header>
+      <div class="header-actions">
+        <button on:click={() => window.history.back()}>← Voltar</button>
+        <div class="pdf-buttons">
+          <button on:click={() => gerarPDF('completo')} class="btn-pdf" disabled={generatingPDF}>
+            {generatingPDF ? '⏳ Gerando...' : '📋 Completo'}
+          </button>
+          <button on:click={() => gerarPDF('aprovados')} class="btn-pdf" disabled={generatingPDF}>
+            {generatingPDF ? '⏳ Gerando...' : '✅ Aprovados'}
+          </button>
+          <button on:click={() => gerarPDF('risco')} class="btn-pdf" disabled={generatingPDF}>
+            {generatingPDF ? '⏳ Gerando...' : '⚠️ Em Risco'}
+          </button>
+          <button on:click={() => gerarPDF('eliminados')} class="btn-pdf btn-eliminados" disabled={generatingPDF}>
+            {generatingPDF ? '⏳ Gerando...' : '🚫 Lista Negra'}
+          </button>
         </div>
-        <h1>Relatório Final - {obraData.obra.nome}</h1>
+      </div>
+      <h1>Relatório Final - {obraData.obra.nome}</h1>
+      
+      <div class="obra-info">
+        <div>
+          <h3>Informações da Obra</h3>
+          <div><strong>Código:</strong> {obraData.obra.codigo || 'N/A'}</div>
+          <div><strong>Data:</strong> {formatDate(obraData.obra.data)}</div>
+          <div><strong>TSST:</strong> {obraData.obra.tsst || 'N/A'}</div>
+        </div>
         
-        <div class="obra-info">
-          <div>
-            <h3>Informações da Obra</h3>
-            <div><strong>Código:</strong> {obraData.obra.codigo || 'N/A'}</div>
-            <div><strong>Data:</strong> {formatDate(obraData.obra.data)}</div>
-            <div><strong>TSST:</strong> {obraData.obra.tsst || 'N/A'}</div>
-          </div>
-          
-          <div class="stats">
-            <h3>Estatísticas</h3>
-            <div class="stats-grid">
-              <div class="stat-item">
-                <div class="stat-value">{obraData.entidades?.length || 0}</div>
-                <div class="stat-label">Total Entidades</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{getEntidadesValidadas()}</div>
-                <div class="stat-label">Validadas</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{getEntidadesPendentes()}</div>
-                <div class="stat-label">Pendentes</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{filtrarEntidades('fornecedor').length}</div>
-                <div class="stat-label">Fornecedores</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{filtrarEntidades('empreitada').length}</div>
-                <div class="stat-label">Empreitadas</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{filtrarEntidades('aluguer').length}</div>
-                <div class="stat-label">Alugueres</div>
-              </div>
+        <div class="stats">
+          <h3>Estatísticas</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value">{obraData.entidades?.length || 0}</div>
+              <div class="stat-label">Total Entidades</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{getEntidadesValidadas()}</div>
+              <div class="stat-label">Validadas</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{getEntidadesPendentes()}</div>
+              <div class="stat-label">Pendentes</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{filtrarEntidades('fornecedor').length}</div>
+              <div class="stat-label">Fornecedores</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{filtrarEntidades('empreitada').length}</div>
+              <div class="stat-label">Empreitadas</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">{filtrarEntidades('aluguer').length}</div>
+              <div class="stat-label">Alugueres</div>
             </div>
           </div>
         </div>
-      </header>
-      
-      <main>
-        {#each Object.entries(tiposEntidades) as [tipo, label]}
-          {@const entidadesValidadas = filtrarEntidadesValidadas(tipo)}
-          {#if entidadesValidadas.length > 0}
-            <section class="entidade-section validated-section">
-              <div class="section-header">
-                <h2>✓ {label} Validadas ({entidadesValidadas.length})</h2>
-              </div>
-              
-              <table class="entidade-table validated-table">
-                <thead>
-                  <tr>
-                    <th>ID Validação</th>
-                    <th>ID Entidade</th>
-                    <th>Nome</th>
-                    <th>NIF</th>
-                    <th>Classificação</th>
-                    <th>Diretor</th>
-                    <th>Data</th>
-                    <th>Observações</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each entidadesValidadas as item}
-                    {@const entidade = item.entidade}
-                    {@const validacao = item.validacao}
-                    
-                    <tr on:click={() => navigateToEntidade(entidade.id)} class="clickable-row">
-                      <td>{validacao.id || 'N/A'}</td>
-                      <td>{entidade.id}</td>
-                      <td>{entidade.fornecedor || 'N/A'}</td>
-                      <td>{formatContribuinte(entidade.contribuinte)}</td>
-                      <td class={validacao.classificacao?.toLowerCase().replace(' ', '-')}>
-                        {validacao.classificacao || 'N/A'}
-                      </td>
-                      <td>{validacao.diretor_responsavel || 'N/A'}</td>
-                      <td>{formatDate(validacao.data_avaliacao)}</td>
-                      <td class="observacoes-cell">
-                        {#if validacao.observacoes_diretor}
-                          <div title={validacao.observacoes_diretor}>
-                            {validacao.observacoes_diretor.length > 30 
-                              ? validacao.observacoes_diretor.substring(0, 30) + '...' 
-                              : validacao.observacoes_diretor}
-                          </div>
-                        {:else}
-                          <span class="no-observations">-</span>
-                        {/if}
-                      </td>
-                      <td>
-                        <button on:click|stopPropagation={() => abrirModalValidacao(entidade, true)} class="btn-view">
-                          Detalhes
-                        </button>
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </section>
-          {/if}
-        {/each}
-      
-        {#each Object.entries(tiposEntidades) as [tipo, label]}
-          {@const entidadesPendentes = filtrarEntidadesPendentes(tipo)}
-          {#if entidadesPendentes.length > 0}
-            <section class="entidade-section pending-section">
-              <div class="section-header">
-                <h2>⏳ {label} Pendentes de Validação ({entidadesPendentes.length})</h2>
-              </div>
-              
-              <table class="entidade-table pending-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>NIF</th>
-                    <th>Pontuação</th>
-                    <th>Status Automático</th>
-                    <th>Data Criação</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each entidadesPendentes as entidade}
-                    {@const statusAutomatico = getStatus(calcularPontuacao(entidade), entidade.tipo || '')}
-                    
-                    <tr on:click={() => navigateToEntidade(entidade.id)} class="clickable-row">
-                      <td>{entidade.id}</td>
-                      <td>{entidade.fornecedor}</td>
-                      <td>{formatContribuinte(entidade.contribuinte)}</td>
-                      <td>{calcularPontuacao(entidade)}</td>
-                      <td>
-                        <div class={statusAutomatico.classe}>{statusAutomatico.texto}</div>
-                      </td>
-                      <td>{formatDate(entidade.data_criacao)}</td>
-                      <td>
-                        <button on:click|stopPropagation={() => abrirModalValidacao(entidade)} class="btn-validate">
-                          Validar
-                        </button>
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </section>
-          {/if}
-        {/each}
-      
-        {#if obraData?.entidades?.length === 0}
-          <div class="no-entities">
-            <p>Nenhuma entidade encontrada para esta obra</p>
-          </div>
-        {/if}
-      </main>
-  
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
-      {#if showValidationModal && entidadeSelecionada}
-        {@const statusCalculado = getStatus(calcularPontuacao(entidadeSelecionada), entidadeSelecionada.tipo || '')}
-        {@const temValidacao = validacaoSelecionada !== null}
-        
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="modal-overlay" on:click|self={fecharModal}>
-          <div class="modal-content">
-            <h2>{isEditingValidation ? 'Editar Validação' : 'Validar Entidade'} (ID: {entidadeSelecionada.id})</h2>
-            
-            <div class="modal-grid">
-              <div class="modal-field">
-                <!-- svelte-ignore a11y-label-has-associated-control -->
-                <label><strong>Tipo:</strong></label>
-                <div>{tiposEntidades[entidadeSelecionada.tipo] || entidadeSelecionada.tipo}</div>
-              </div>
-              
-              <div class="modal-field">
-                <!-- svelte-ignore a11y-label-has-associated-control -->
-                <label><strong>Fornecedor:</strong></label>
-                <div>{entidadeSelecionada.fornecedor || 'N/A'}</div>
-              </div>
-              
-              <div class="modal-field">
-                <!-- svelte-ignore a11y-label-has-associated-control -->
-                <label><strong>NIF:</strong></label>
-                <div>{formatContribuinte(entidadeSelecionada.contribuinte)}</div>
-              </div>
-              
-              <div class="modal-field">
-                <!-- svelte-ignore a11y-label-has-associated-control -->
-                <label><strong>Pontuação Calculada:</strong></label>
-                <div>{calcularPontuacao(entidadeSelecionada)} pontos</div>
-              </div>
-              
-              <div class="modal-field">
-                <!-- svelte-ignore a11y-label-has-associated-control -->
-                <label><strong>Classificação Automática:</strong></label>
-                <div class={statusCalculado.classe}>{statusCalculado.texto}</div>
-              </div>
-              
-              <div class="modal-field full-width">
-                <label for="classificacao-final-select"><strong>Classificação Final *</strong></label>
-                <select id="classificacao-final-select" bind:value={novaClassificacao}>
-                  {#each classificacoesPossiveis as classificacao}
-                    <option value={classificacao}>{classificacao}</option>
-                  {/each}
-                </select>
-              </div>
-              
-              <div class="modal-field full-width">
-                <label for="diretor-responsavel-input"><strong>Diretor Responsável *</strong></label>
-                <input id="diretor-responsavel-input" type="text" bind:value={diretorResponsavel} 
-                       placeholder="Nome do diretor que autorizou a validação" required />
-              </div>
-              
-              {#if novaClassificacao !== statusCalculado.texto}
-                <div class="modal-field full-width">
-                  <label for="motivo-alteracao-textarea"><strong>Motivo da Alteração *</strong></label>
-                  <textarea id="motivo-alteracao-textarea" bind:value={motivoAlteracao} 
-                            placeholder="Descreva o motivo pelo qual está alterando a classificação..." required></textarea>
-                </div>
-              {/if}
-              
-              {#if temValidacao}
-                <!-- svelte-ignore a11y-label-has-associated-control -->
-                <div class="modal-field full-width">
-                  <!-- svelte-ignore a11y-label-has-associated-control -->
-                  <label><strong>Data da Validação:</strong></label>
-                  <div>{formatDate(validacaoSelecionada.data_avaliacao)}</div>
-                </div>
-              {/if}
-              
-              <div class="modal-actions">
-                <button on:click={fecharModal} class="btn-cancel">
-                  Cancelar
-                </button>
-                <button on:click={validarEntidade} class="btn-confirm">
-                  {isEditingValidation ? 'Atualizar Validação' : 'Confirmar Validação'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      </div>
+    </header>
+    
+    <div class="search-container">
+      <input 
+        type="text" 
+        bind:value={searchTerm}
+        placeholder="Pesquisar por NIF, nome ou ID..."
+        on:input={() => searchActive = searchTerm.length > 0}
+      />
+      {#if searchActive}
+        <button on:click={() => { searchTerm = ''; searchActive = false; }} class="clear-search">
+          Limpar
+        </button>
       {/if}
     </div>
-  {/if}
-  
-  <style>
-    .observacoes-cell {
-      max-width: 200px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  
-    .observacoes-cell div {
-      cursor: help;
-    }
-  
-    .no-observations {
-      color: #999;
-      font-style: italic;
-    }
-  
-    .btn-view {
-      background-color: #4CAF50;
-      color: white;
-      padding: 5px 10px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-  
-    .btn-view:hover {
-      background-color: #45a049;
-    }
-  
-    .excelente { background-color: #d4edda; color: #155724; }
-    .bom { background-color: #c3e6cb; color: #0c5460; }
-    .em-risco { background-color: #fff3cd; color: #856404; }
-    .eliminado { background-color: #f8d7da; color: #721c24; }
-  </style>
+    
+    <main>
+      {#each Object.entries(tiposEntidades) as [tipo, label]}
+        {@const entidadesValidadas = filterEntities(filtrarEntidadesValidadas(tipo), true)}
+        {#if entidadesValidadas.length > 0}
+          <section class="entidade-section validated-section">
+            <div class="section-header">
+              <h2>✓ {label} Validadas ({entidadesValidadas.length})</h2>
+            </div>
+            
+            <table class="entidade-table validated-table">
+              <thead>
+                <tr>
+                  <th>ID Validação</th>
+                  <th>ID Entidade</th>
+                  <th>Nome</th>
+                  <th>NIF</th>
+                  <th>Classificação</th>
+                  <th>Diretor</th>
+                  <th>Data</th>
+                  <th>Observações</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each entidadesValidadas as item}
+                  {@const entidade = item.entidade}
+                  {@const validacao = item.validacao}
+                  
+                  <tr on:click={() => navigateToEntidade(entidade.id)} class="clickable-row">
+                    <td>{validacao.id || 'N/A'}</td>
+                    <td>{entidade.id}</td>
+                    <td>{entidade.fornecedor || 'N/A'}</td>
+                    <td>{formatContribuinte(entidade.contribuinte)}</td>
+                    <td class={validacao.classificacao?.toLowerCase().replace(' ', '-')}>
+                      {validacao.classificacao || 'N/A'}
+                    </td>
+                    <td>{validacao.diretor_responsavel || 'N/A'}</td>
+                    <td>{formatDate(validacao.data_avaliacao)}</td>
+                    <td class="observacoes-cell">
+                      {#if validacao.observacoes_diretor}
+                        <div title={validacao.observacoes_diretor}>
+                          {validacao.observacoes_diretor.length > 30 
+                            ? validacao.observacoes_diretor.substring(0, 30) + '...' 
+                            : validacao.observacoes_diretor}
+                        </div>
+                      {:else}
+                        <span class="no-observations">-</span>
+                      {/if}
+                    </td>
+                    <td>
+                      <button on:click|stopPropagation={() => abrirModalValidacao(entidade, true)} class="btn-view">
+                        Detalhes
+                      </button>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </section>
+        {/if}
+      {/each}
+    
+      {#each Object.entries(tiposEntidades) as [tipo, label]}
+        {@const entidadesPendentes = filterEntities(filtrarEntidadesPendentes(tipo))}
+        {#if entidadesPendentes.length > 0}
+          <section class="entidade-section pending-section">
+            <div class="section-header">
+              <h2>⏳ {label} Pendentes de Validação ({entidadesPendentes.length})</h2>
+            </div>
+            
+            <table class="entidade-table pending-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nome</th>
+                  <th>NIF</th>
+                  <th>Pontuação</th>
+                  <th>Status Automático</th>
+                  <th>Data Criação</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each entidadesPendentes as entidade}
+                  {@const statusAutomatico = getStatus(calcularPontuacao(entidade), entidade.tipo || '')}
+                  
+                  <tr on:click={() => navigateToEntidade(entidade.id)} class="clickable-row">
+                    <td>{entidade.id}</td>
+                    <td>{entidade.fornecedor}</td>
+                    <td>{formatContribuinte(entidade.contribuinte)}</td>
+                    <td>{calcularPontuacao(entidade)}</td>
+                    <td>
+                      <div class={statusAutomatico.classe}>{statusAutomatico.texto}</div>
+                    </td>
+                    <td>{formatDate(entidade.data_criacao)}</td>
+                    <td>
+                      <button on:click|stopPropagation={() => abrirModalValidacao(entidade)} class="btn-validate">
+                        Validar
+                      </button>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </section>
+        {/if}
+      {/each}
+    
+      {#if obraData?.entidades?.length === 0}
+        <div class="no-entities">
+          <p>Nenhuma entidade encontrada para esta obra</p>
+        </div>
+      {/if}
+    </main>
+
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    {#if showValidationModal && entidadeSelecionada}
+      {@const statusCalculado = getStatus(calcularPontuacao(entidadeSelecionada), entidadeSelecionada.tipo || '')}
+      {@const temValidacao = validacaoSelecionada !== null}
+      
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <div class="modal-overlay" on:click|self={fecharModal}>
+        <div class="modal-content">
+          <h2>{isEditingValidation ? 'Editar Validação' : 'Validar Entidade'} (ID: {entidadeSelecionada.id})</h2>
+          
+          <div class="modal-grid">
+            <div class="modal-field">
+              <!-- svelte-ignore a11y-label-has-associated-control -->
+              <label><strong>Tipo:</strong></label>
+              <div>{tiposEntidades[entidadeSelecionada.tipo] || entidadeSelecionada.tipo}</div>
+            </div>
+            
+            <div class="modal-field">
+              <!-- svelte-ignore a11y-label-has-associated-control -->
+              <label><strong>Fornecedor:</strong></label>
+              <div>{entidadeSelecionada.fornecedor || 'N/A'}</div>
+            </div>
+            
+            <div class="modal-field">
+              <!-- svelte-ignore a11y-label-has-associated-control -->
+              <label><strong>NIF:</strong></label>
+              <div>{formatContribuinte(entidadeSelecionada.contribuinte)}</div>
+            </div>
+            
+            <div class="modal-field">
+              <!-- svelte-ignore a11y-label-has-associated-control -->
+              <label><strong>Pontuação Calculada:</strong></label>
+              <div>{calcularPontuacao(entidadeSelecionada)} pontos</div>
+            </div>
+            
+            <div class="modal-field">
+              <!-- svelte-ignore a11y-label-has-associated-control -->
+              <label><strong>Classificação Automática:</strong></label>
+              <div class={statusCalculado.classe}>{statusCalculado.texto}</div>
+            </div>
+            
+            <div class="modal-field full-width">
+              <label for="classificacao-final-select"><strong>Classificação Final *</strong></label>
+              <select id="classificacao-final-select" bind:value={novaClassificacao}>
+                {#each classificacoesPossiveis as classificacao}
+                  <option value={classificacao}>{classificacao}</option>
+                {/each}
+              </select>
+            </div>
+            
+            <div class="modal-field full-width">
+              <label for="diretor-responsavel-input"><strong>Diretor Responsável *</strong></label>
+              <input id="diretor-responsavel-input" type="text" bind:value={diretorResponsavel} 
+                     placeholder="Nome do diretor que autorizou a validação" required />
+            </div>
+            
+            {#if novaClassificacao !== statusCalculado.texto}
+              <div class="modal-field full-width">
+                <label for="motivo-alteracao-textarea"><strong>Motivo da Alteração *</strong></label>
+                <textarea id="motivo-alteracao-textarea" bind:value={motivoAlteracao} 
+                          placeholder="Descreva o motivo pelo qual está alterando a classificação..." required></textarea>
+              </div>
+            {/if}
+            
+            {#if temValidacao}
+              <!-- svelte-ignore a11y-label-has-associated-control -->
+              <div class="modal-field full-width">
+                <!-- svelte-ignore a11y-label-has-associated-control -->
+                <label><strong>Data da Validação:</strong></label>
+                <div>{formatDate(validacaoSelecionada.data_avaliacao)}</div>
+              </div>
+            {/if}
+            
+            <div class="modal-actions">
+              <button on:click={fecharModal} class="btn-cancel">
+                Cancelar
+              </button>
+              <button on:click={validarEntidade} class="btn-confirm">
+                {isEditingValidation ? 'Atualizar Validação' : 'Confirmar Validação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+  </div>
+{/if}
+
+<style>
+  .observacoes-cell {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .observacoes-cell div {
+    cursor: help;
+  }
+
+  .no-observations {
+    color: #999;
+    font-style: italic;
+  }
+
+  .btn-view {
+    background-color: #4CAF50;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .btn-view:hover {
+    background-color: #45a049;
+  }
+
+  .excelente { background-color: #d4edda; color: #155724; }
+  .bom { background-color: #c3e6cb; color: #0c5460; }
+  .em-risco { background-color: #fff3cd; color: #856404; }
+  .eliminado { background-color: #f8d7da; color: #721c24; }
+
+  .search-container {
+    margin: 20px 0;
+    padding: 0 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .search-container input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    flex-grow: 1;
+    font-size: 14px;
+  }
+
+  .clear-search {
+    padding: 8px 12px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .clear-search:hover {
+    background-color: #e0e0e0;
+  }
+</style>

@@ -26,16 +26,8 @@
   }
 
   const voltar = () => {
-  const referrer = document.referrer;
-  
-  if (referrer.includes('/obras/')) {
-    const obraId = referrer.split('/obras/')[1].split('/')[0];
-    const tabType = getTabTypeFromEntityType(entidadeData.tipo);
-    window.location.href = `/obras/${obraId}?tab=${tabType}`;
-  } else {
     window.history.back();
   }
-}
 
 function getTabTypeFromEntityType(entityType) {
   const tipo = entityType.toLowerCase();
